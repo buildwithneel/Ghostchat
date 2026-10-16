@@ -1,0 +1,121 @@
+name: GhostChat CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # JOB 1: Backend Validation & Testing
+  # ==========================================
+  backend-ci:
+    name: 🟢 Backend CI (Lint & Syntax Check)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 📦 Install Backend Dependencies
+        working-directory: backend
+        run: npm ci || npm install
+
+      - name: 🧪 Run Backend Syntax & Integrity Checks
+        working-directory: backend
+        run: npm test
+
+  # ==========================================
+  # JOB 2: Frontend Validation, Lint & PWA Build
+  # ==========================================
+  frontend-ci:
+    name: ⚛️ Frontend CI (Lint, PWA & Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: 🔍 Run ESLint Linter
+        working-directory: frontend
+        run: npm run lint
+
+      - name: 🏗️ Build Production Bundle
+        working-directory: frontend
+        env:
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL || 'https://ghostchat-backend.onrender.com' }}
+        run: npm run build
+
+      - name: 📱 Verify PWA Artifacts
+        working-directory: frontend
+        run: |
+          echo "Verifying PWA distribution bundle..."
+          test -f dist/index.html || { echo "❌ Missing dist/index.html"; exit 1; }
+          test -f dist/manifest.json || { echo "❌ Missing dist/manifest.json"; exit 1; }
+          test -f dist/sw.js || { echo "❌ Missing dist/sw.js"; exit 1; }
+          test -f dist/icon-192.png || { echo "❌ Missing dist/icon-192.png"; exit 1; }
+          test -f dist/icon-512.png || { echo "❌ Missing dist/icon-512.png"; exit 1; }
+          test -f dist/apple-touch-icon.png || { echo "❌ Missing dist/apple-touch-icon.png"; exit 1; }
+          echo "✅ All PWA and production assets successfully verified!"
+
+  # ==========================================
+  # JOB 3: CD Automated Deploy Triggers
+  # ==========================================
+  deploy:
+    name: 🚀 Automated Deployment
+    needs: [backend-ci, frontend-ci]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # Render.com Deploy Hook (Backend)
+      - name: 🔄 Trigger Render Backend Deployment
+        if: ${{ env.RENDER_DEPLOY_HOOK != '' }}
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering Render deployment webhook..."
+          curl -s -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
+          echo "✅ Render deployment webhook dispatched successfully!"
+
+      - name: ℹ️ Render Deploy Notice (If secret not set)
+        if: ${{ env.RENDER_DEPLOY_HOOK == '' }}
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "ℹ️ Note: If Render is connected directly to your GitHub repo, it will auto-deploy on push to main."
+          echo "To trigger deployments via GitHub Actions instead, add RENDER_DEPLOY_HOOK_URL to your GitHub repository Secrets."
+
+      # Vercel Deployment Notice / Status
+      - name: ℹ️ Vercel Frontend Deploy Notice
+        run: |
+          echo "ℹ️ Vercel automatically deploys when commits land on 'main'."
+          echo "Ensure your Vercel project has VITE_BACKEND_URL set to your Render backend URL."
+          echo "✅ CI/CD Pipeline executed successfully!"
