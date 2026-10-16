@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js controllers/fileController.js controllers/roomController.js routes/fileRoutes.js socket/chatHandler.js utils/helpers.js"
+    "test": "node --check server.js controllers/fileController.js controllers/roomController.js routes/fileRoutes.js socket/chatHandler.js utils/helpers.js && node test_room_actions.js"
   },
   "keywords": [],
   "author": "",

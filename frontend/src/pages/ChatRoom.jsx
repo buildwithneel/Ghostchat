@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, Search, X, Pin, Check } from 'lucide-react';
 
 import MessageBubble from '../components/MessageBubble';
 import InputBar from '../components/InputBar';
@@ -13,6 +13,8 @@ import SmartTopBar from '../components/SmartTopBar';
 import WelcomeMessage from '../components/WelcomeMessage';
 import SettingsPanel from '../components/SettingsPanel';
 import EmptyState from '../components/EmptyState';
+import ForwardModal from '../components/ForwardModal';
+import RoomPasswordModal from '../components/RoomPasswordModal';
 
 import { socket } from '../utils/socket';
 import { API_ROUTES } from '../utils/config';
@@ -21,19 +23,31 @@ import { soundEngine } from '../utils/sound';
 export default function ChatRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [messages, setMessages] = useState([]);
   const [username, setUsername] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
   const [activeUsers, setActiveUsers] = useState([]);
   const [isTypingStr, setIsTypingStr] = useState('');
 
+  // Modals & Panels
   const [showQr, setShowQr] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
-  
+  const [showWelcome] = useState(true);
+
+  // New Room System & Action States
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [forwardNotice, setForwardNotice] = useState(null);
+
+  // Theme & Sound
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
     const saved = localStorage.getItem('ghostchat_theme');
     return saved !== null ? saved === 'dark' : true;
@@ -88,19 +102,63 @@ export default function ChatRoom() {
     });
   };
 
-  useEffect(() => {
-    socket.emit('join_room', roomId, (response) => {
+  const saveRecentRoom = useCallback((id, name, hasPwd) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ghostchat_recent_rooms') || '[]');
+      const filtered = saved.filter(r => r.roomId !== id);
+      const updated = [
+        { roomId: id, roomName: name || id, hasPassword: !!hasPwd, lastVisited: Date.now() },
+        ...filtered
+      ].slice(0, 10);
+      localStorage.setItem('ghostchat_recent_rooms', JSON.stringify(updated));
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  // Room Join Flow
+  const attemptJoin = useCallback((passwordToTry = '') => {
+    const passedRoomName = location.state?.roomName || '';
+    const isExplicitCreate = location.state?.isExplicitCreate || false;
+
+    socket.emit('join_room', {
+      roomId,
+      password: passwordToTry,
+      roomName: passedRoomName,
+      isExplicitCreate
+    }, (response) => {
       if (response?.success) {
         setUsername(response.username);
         setIsAdmin(response.isAdmin);
+        setRoomName(response.roomName || response.roomId);
+        setHasPassword(!!response.hasPassword);
         setActiveUsers(response.users || []);
+        if (response.messages && Array.isArray(response.messages)) {
+          setMessages(response.messages);
+        }
+        setPasswordModalOpen(false);
+        setPasswordError('');
+
+        saveRecentRoom(response.roomId, response.roomName, response.hasPassword);
+
         if (response.roomId !== roomId) {
-          navigate(`/room/${response.roomId}`, { replace: true });
+          navigate(`/room/${response.roomId}`, { replace: true, state: {} });
+        }
+      } else if (response?.requiresPassword) {
+        setPasswordModalOpen(true);
+        if (passwordToTry) {
+          setPasswordError(response.error || 'Incorrect password. Please try again.');
         }
       } else {
+        alert(response?.error || 'Unable to join room.');
         navigate('/');
       }
     });
+  }, [roomId, location.state, navigate, saveRecentRoom]);
+
+  useEffect(() => {
+    const initialPwd = location.state?.password || '';
+    attemptJoin(initialPwd);
 
     const handleScroll = () => {
       if (!scrollContainerRef.current) return;
@@ -118,8 +176,8 @@ export default function ChatRoom() {
     if (scrollEl) scrollEl.addEventListener('scroll', handleScroll);
     return () => {
        if (scrollEl) scrollEl.removeEventListener('scroll', handleScroll);
-    }
-  }, [roomId, navigate]);
+    };
+  }, [roomId, attemptJoin, location.state]);
 
   useEffect(() => {
     const isAtBottom = () => {
@@ -173,26 +231,19 @@ export default function ChatRoom() {
     };
 
     const handleKicked = () => {
-      alert("You have been kicked by the admin.");
+      alert("You have been removed by the room admin.");
       navigate('/');
     };
 
     const handlePin = (data) => {
-      setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, pinned: !m.pinned } : m));
+      setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, pinned: data.pinned !== undefined ? data.pinned : !m.pinned } : m));
     };
     
+    // Real-time reaction update
     const handleReaction = (data) => {
       setMessages(prev => prev.map(m => {
         if (m.id === data.messageId) {
-           const existing = m.reactions || [];
-           const rIndex = existing.findIndex(r => r.emoji === data.emoji);
-           if (rIndex >= 0) {
-              const newR = [...existing];
-              newR[rIndex].count += 1;
-              return { ...m, reactions: newR };
-           } else {
-              return { ...m, reactions: [...existing, { emoji: data.emoji, count: 1 }] };
-           }
+          return { ...m, reactions: data.reactions || [] };
         }
         return m;
       }));
@@ -205,6 +256,7 @@ export default function ChatRoom() {
     socket.on('user_typing', handleTyping);
     socket.on('kicked_out', handleKicked);
     socket.on('message_pinned', handlePin);
+    socket.on('reaction_updated', handleReaction);
     socket.on('reaction_added', handleReaction);
 
     return () => {
@@ -215,22 +267,27 @@ export default function ChatRoom() {
       socket.off('user_typing', handleTyping);
       socket.off('kicked_out', handleKicked);
       socket.off('message_pinned', handlePin);
+      socket.off('reaction_updated', handleReaction);
       socket.off('reaction_added', handleReaction);
     };
   }, [roomId, navigate, username, soundEnabled]);
 
-
-  const sendMessage = (text, replyTo = null) => {
+  const sendMessage = (text, replyTarget = null) => {
     socket.emit('send_message', { 
        roomId, 
        message: text, 
        username, 
        type: 'text',
-       id: Date.now().toString(), // local id generation for react mapping if needed
-       replyTo: replyTo 
+       id: Math.random().toString(36).substring(7),
+       replyTo: replyTarget ? {
+         id: replyTarget.id,
+         username: replyTarget.username,
+         message: replyTarget.type === 'file' ? '📎 File Attachment' : replyTarget.message
+       } : null
     });
     soundEngine.playSend();
     if (text.toLowerCase().includes('party')) triggerConfetti();
+    setReplyingTo(null);
   };
 
   const handleFileUpload = async ({ file, password, expiryMins, viewOnce }) => {
@@ -250,12 +307,19 @@ export default function ChatRoom() {
       const data = await res.json();
       if (data.success) {
         setShowUploadModal(false);
-        socket.emit('send_message', { roomId, username, type: 'file', fileData: data.file, message: 'Shared a file', id: Date.now().toString() });
+        socket.emit('send_message', {
+          roomId,
+          username,
+          type: 'file',
+          fileData: data.file,
+          message: 'Shared a file',
+          id: Math.random().toString(36).substring(7)
+        });
         soundEngine.playSend();
       } else {
         alert(data.error);
       }
-    } catch (err) {
+    } catch {
       alert('Upload failed');
     }
   };
@@ -280,12 +344,11 @@ export default function ChatRoom() {
   };
 
   const pinMessage = (messageId) => {
-     if(!isAdmin) return;
      socket.emit('pin_message', { roomId, messageId });
   };
   
   const reactToMessage = (messageId, emoji) => {
-     socket.emit('react_message', { roomId, messageId, emoji });
+     socket.emit('react_message', { roomId, messageId, emoji, username });
   };
 
   const handleTypingActivity = (isTyping) => {
@@ -293,12 +356,13 @@ export default function ChatRoom() {
   };
 
   const clearChat = () => {
-    if (confirm('Are you sure you want to clear your local chat history?')) {
+    if (confirm('Are you sure you want to clear your local chat display?')) {
       setMessages([]);
     }
   };
 
   const leaveRoom = () => {
+    socket.emit('leave_room', { roomId });
     navigate('/');
   };
 
@@ -308,7 +372,12 @@ export default function ChatRoom() {
     setShowScrollBottom(false);
   };
 
-  // Filter messages early
+  const handleForwardSuccess = (targetId) => {
+    setForwardNotice(`Message forwarded to ${targetId}`);
+    setTimeout(() => setForwardNotice(null), 3000);
+  };
+
+  // Filter messages
   const filteredMessages = messages.filter(m => 
     !searchQuery || 
     (m.message && m.message.toLowerCase().includes(searchQuery.toLowerCase())) || 
@@ -328,16 +397,34 @@ export default function ChatRoom() {
       
       <SmartTopBar 
         roomId={roomId}
+        roomName={roomName}
+        hasPassword={hasPassword}
         activeUsersCount={activeUsers.length}
         username={username}
         isAdmin={isAdmin}
         onShowQr={() => setShowQr(true)}
         onShowSettings={() => setShowSettings(true)}
+        onLeaveRoom={leaveRoom}
         isDarkTheme={isDarkTheme}
         toggleTheme={toggleTheme}
         soundEnabled={soundEnabled}
         toggleSound={toggleSound}
       />
+
+      {/* Forward Success Notice Toast */}
+      <AnimatePresence>
+        {forwardNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-semibold backdrop-blur-md"
+          >
+            <Check className="w-4 h-4" />
+            <span>{forwardNotice}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Global Search Bar Dropdown */}
       <AnimatePresence>
@@ -374,12 +461,12 @@ export default function ChatRoom() {
           {messages.filter(m => m.pinned).length > 0 && !searchQuery && (
              <div className="sticky top-0 z-10 w-full rounded-2xl glass-panel p-3 mb-6 border-l-4 border-l-yellow-400 shadow-xl overflow-hidden bg-slate-900/80 backdrop-blur-xl">
                 <div className="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                  <Pin className="w-3 h-3" /> Pinned
+                  <Pin className="w-3 h-3" /> Pinned Messages
                 </div>
-                {messages.filter(m => m.pinned).slice(-2).map((msg, i) => (
+                {messages.filter(m => m.pinned).slice(-3).map((msg, i) => (
                   <div key={`pin-${i}`} className="text-slate-200 text-sm py-1 border-b border-slate-700/30 last:border-0 truncate flex items-center gap-2">
                     <span className="text-slate-400 font-semibold">{msg.username}</span> 
-                    <span className="text-slate-300 truncate">{msg.type==='text'? msg.message : '📎 File Attachment'}</span>
+                    <span className="text-slate-300 truncate">{msg.type==='file' ? '📎 File Attachment' : msg.message}</span>
                   </div>
                 ))}
              </div>
@@ -387,9 +474,9 @@ export default function ChatRoom() {
 
           {filteredMessages.length === 0 && !isTypingStr && (
              searchQuery ? (
-               <div className="text-center text-slate-500 mt-20">No messages match "{searchQuery}"</div>
+                <div className="text-center text-slate-500 mt-20">No messages match "{searchQuery}"</div>
              ) : (
-               <EmptyState />
+                <EmptyState />
              )
           )}
 
@@ -407,9 +494,10 @@ export default function ChatRoom() {
                  onKickUser={kickUser}
                  onPinMessage={pinMessage}
                  onReact={reactToMessage}
-                 onReply={(m) => {}} // Could be extended to set an active reply state
+                 onReply={(m) => setReplyingTo(m)}
+                 onForward={(m) => setForwardingMessage(m)}
               />
-            )
+            );
           })}
           
           {isTypingStr && (
@@ -451,13 +539,17 @@ export default function ChatRoom() {
         )}
       </AnimatePresence>
 
+      {/* Message Input Bar */}
       <InputBar 
         onSendMessage={sendMessage} 
         onTyping={handleTypingActivity} 
         onOpenUpload={() => setShowUploadModal(true)} 
         onSearchToggle={() => setShowSearch(!showSearch)}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
       />
 
+      {/* Modals */}
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
@@ -484,6 +576,27 @@ export default function ChatRoom() {
         onUpload={handleFileUpload} 
       />
 
+      <ForwardModal
+        isOpen={!!forwardingMessage}
+        message={forwardingMessage}
+        currentRoomId={roomId}
+        username={username}
+        onClose={() => setForwardingMessage(null)}
+        onForwardSuccess={handleForwardSuccess}
+      />
+
+      <RoomPasswordModal
+        isOpen={passwordModalOpen}
+        roomId={roomId}
+        roomName={roomName}
+        error={passwordError}
+        onClose={() => {
+          setPasswordModalOpen(false);
+          navigate('/');
+        }}
+        onSubmit={(pwd) => attemptJoin(pwd)}
+      />
+
       {/* QR Code Modal */}
       <AnimatePresence>
         {showQr && (
@@ -493,14 +606,15 @@ export default function ChatRoom() {
            >
              <motion.div 
                initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-               className="glass-panel p-8 rounded-3xl text-center shadow-2xl border border-slate-700/50" 
+               className="glass-panel p-8 rounded-3xl text-center shadow-2xl border border-slate-700/50 bg-white/95 dark:bg-slate-900/95" 
                onClick={e => e.stopPropagation()}
              >
-               <h3 className="text-xl font-bold text-white mb-6">Scan to Join</h3>
+               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Scan to Join</h3>
+               <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">{roomName || roomId}</p>
                <div className="bg-white p-4 rounded-2xl mx-auto inline-block mb-6 shadow-[0_0_40px_rgba(99,102,241,0.4)]">
                  <QRCodeSVG value={window.location.href} size={200} />
                </div>
-               <p className="text-slate-400 font-mono tracking-widest text-xl bg-slate-900/50 py-2 px-4 rounded-xl border border-slate-700/50">{roomId}</p>
+               <p className="text-slate-700 dark:text-slate-300 font-mono tracking-widest text-xl bg-slate-100 dark:bg-slate-800/80 py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700/50">{roomId}</p>
              </motion.div>
            </motion.div>
         )}
