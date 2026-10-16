@@ -28,18 +28,18 @@ export default function FileUploadModal({ isOpen, onClose, onUpload }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl relative border border-slate-700"
+        className="glass-panel w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95"
       >
-        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors p-1 rounded-lg">
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-          <Upload className="w-5 h-5 text-indigo-400" /> Upload File
+        <h3 className="text-lg sm:text-xl font-bold mb-5 text-slate-900 dark:text-white flex items-center gap-2">
+          <Upload className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Upload File
         </h3>
 
         {!selectedFile ? (

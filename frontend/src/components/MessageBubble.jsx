@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, File, Lock, Clock, EyeOff, Pin, ThumbsUp, Heart, Flame, Laugh } from 'lucide-react';
+import { Download, File, Lock, Clock, EyeOff, Pin, Forward, MoreHorizontal, Plus } from 'lucide-react';
 import MessageActionMenu from './MessageActionMenu';
 import { getUserColor, getInitials } from '../utils/colors';
 import { API_ROUTES } from '../utils/config';
@@ -13,9 +13,39 @@ export default function MessageBubble({
   onPinMessage, 
   onKickUser,
   onReact,
-  onReply
+  onReply,
+  onForward
 }) {
-  const [isHovered, setIsHovered] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const touchTimerRef = useRef(null);
+  const bubbleRef = useRef(null);
+
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      if (bubbleRef.current && !bubbleRef.current.contains(e.target)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener('click', handleGlobalClick);
+    }
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+      clearTimeout(touchTimerRef.current);
+    };
+  }, [showMenu]);
+
+  // Touch handlers for mobile long-press
+  const handleTouchStart = () => {
+    touchTimerRef.current = setTimeout(() => {
+      setShowMenu(true);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 450);
+  };
+
+  const handleTouchEnd = () => {
+    clearTimeout(touchTimerRef.current);
+  };
 
   if (message.type === 'system') {
     return (
@@ -37,13 +67,17 @@ export default function MessageBubble({
 
   return (
     <motion.div 
+      ref={bubbleRef}
       initial={{ opacity: 0, scale: 0.95, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       layout
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
       className={`flex mb-2 max-w-[85%] relative group ${isOwn ? 'ml-auto justify-end' : 'mr-auto justify-start'} ${!isConsecutive ? 'mt-4' : ''}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => setShowMenu(true)}
+      onMouseLeave={() => setShowMenu(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {!isOwn && (
         <div className={`w-8 h-8 flex-shrink-0 mr-2 ${isConsecutive ? 'opacity-0' : 'opacity-100'}`}>
@@ -58,7 +92,7 @@ export default function MessageBubble({
         </div>
       )}
 
-      <div className={`flex flex-col relative ${isOwn ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col relative max-w-full ${isOwn ? 'items-end' : 'items-start'}`}>
         {/* Username & Time Header (Only show if not consecutive) */}
         {!isConsecutive && (
           <div className={`flex items-baseline gap-2 mb-1 px-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
@@ -66,18 +100,34 @@ export default function MessageBubble({
               {isOwn ? 'You' : message.username}
             </span>
             <span className="text-[10px] text-slate-500 font-medium">{timeStr}</span>
-            {message.pinned && <Pin className="w-3 h-3 text-yellow-500" />}
+            {message.pinned && <Pin className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
           </div>
         )}
 
-        {/* Message Actions Menu (Absolute positioning on hover) */}
+        {/* Action Menu (Visible on hover or long-press / click) */}
         <AnimatePresence>
-          {isHovered && (
+          {showMenu && (
              <MessageActionMenu
-                onReply={() => onReply(message)}
-                onCopy={() => navigator.clipboard.writeText(message.message || '')}
-                onPin={() => onPinMessage(message.id)}
-                onReact={() => onReact(message.id, '❤️')}
+                onReply={() => {
+                  setShowMenu(false);
+                  onReply(message);
+                }}
+                onForward={() => {
+                  setShowMenu(false);
+                  if (onForward) onForward(message);
+                }}
+                onCopy={() => {
+                  setShowMenu(false);
+                  navigator.clipboard.writeText(message.message || '');
+                }}
+                onPin={() => {
+                  setShowMenu(false);
+                  onPinMessage(message.id);
+                }}
+                onReact={(emoji) => {
+                  setShowMenu(false);
+                  onReact(message.id, emoji);
+                }}
                 isOwn={isOwn}
                 isAdmin={isAdmin}
              />
@@ -86,8 +136,9 @@ export default function MessageBubble({
 
         {/* The Bubble */}
         <motion.div 
-          whileHover={{ scale: 1.01, y: -1 }}
-          className={`relative px-4 py-2.5 rounded-2xl break-words whitespace-pre-wrap shadow-md max-w-full z-0 transition-shadow ${
+          onClick={() => setShowMenu(prev => !prev)}
+          whileHover={{ scale: 1.005, y: -0.5 }}
+          className={`relative px-4 py-2.5 rounded-2xl break-words whitespace-pre-wrap shadow-md max-w-full z-0 transition-shadow cursor-pointer ${
           isOwn 
             ? 'msg-glass-own text-white' 
             : 'msg-glass text-slate-200'
@@ -97,31 +148,58 @@ export default function MessageBubble({
               : (isConsecutive ? 'rounded-tl-sm rounded-bl-sm' : 'rounded-bl-sm rounded-tl-2xl')
           }`}
         >
-          {isAdmin && !isOwn && isHovered && (
+          {isAdmin && !isOwn && showMenu && (
             <button 
-              onClick={() => onKickUser(message.username)}
-              className="absolute -top-6 left-0 text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm border border-red-500/30 font-semibold"
+              onClick={(e) => {
+                e.stopPropagation();
+                onKickUser(message.username);
+              }}
+              className="absolute -top-6 left-0 text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded opacity-100 transition-opacity backdrop-blur-sm border border-red-500/30 font-semibold"
             >
               Kick User
             </button>
           )}
 
+          {/* Forwarded Header Indicator */}
+          {message.isForwarded && (
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-300 dark:text-slate-400 mb-1.5 pb-1 border-b border-white/10 opacity-90">
+              <Forward className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Forwarded {message.forwardedFrom ? `from ${message.forwardedFrom}` : ''}</span>
+            </div>
+          )}
+
           {/* Reply Context / Thread Reference */}
           {message.replyTo && (
-            <div className="text-xs bg-black/20 text-slate-300 p-2 rounded-lg mb-2 border-l-2 border-indigo-400 opacity-80 backdrop-blur-sm truncate max-w-[200px]">
-              <span className="font-semibold block mb-0.5">{message.replyTo.username}</span>
-              {message.replyTo.message.substring(0, 40)}{message.replyTo.message.length > 40 ? '...' : ''}
+            <div className="text-xs bg-black/25 text-slate-300 p-2.5 rounded-xl mb-2.5 border-l-4 border-indigo-400 backdrop-blur-sm truncate max-w-[280px]">
+              <span className="font-bold text-indigo-300 block mb-0.5">
+                {message.replyTo.username}
+              </span>
+              <span className="line-clamp-2 text-slate-300 opacity-90">
+                {message.replyTo.message}
+              </span>
             </div>
           )}
 
           {isFile ? (
              <FilePreview fileData={message.fileData} />
           ) : (
-            <p className="leading-relaxed text-[15px]">{message.message}</p>
+            <p className="leading-relaxed text-[15px] select-text">{message.message}</p>
           )}
 
-          {/* Animated Hover Timestamp (Alternative to header if consecutive) */}
-          {isConsecutive && isHovered && (
+          {/* Mobile more button indicator */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(prev => !prev);
+            }}
+            className="sm:hidden absolute top-1 right-1 p-1 text-white/40 hover:text-white"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Hover Timestamp if consecutive */}
+          {isConsecutive && showMenu && (
              <motion.span 
                initial={{ opacity: 0, x: isOwn ? 10 : -10 }}
                animate={{ opacity: 1, x: 0 }}
@@ -135,17 +213,36 @@ export default function MessageBubble({
 
         {/* Reactions Render */}
         {message.reactions && message.reactions.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1 z-10 relative">
+          <div className="flex flex-wrap items-center gap-1 mt-1.5 z-10 relative">
              {message.reactions.map((r, i) => (
-                <motion.div 
-                  key={i}
+                <motion.button 
+                  key={`${r.emoji}-${i}`}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReact(message.id, r.emoji);
+                  }}
+                  whileTap={{ scale: 0.9 }}
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="bg-slate-800/80 backdrop-blur-md border border-slate-700/50 rounded-full px-2 py-0.5 text-xs shadow-sm flex items-center gap-1 cursor-pointer hover:bg-slate-700/80"
+                  className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700/60 rounded-full px-2.5 py-0.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  title="Click to toggle reaction"
                 >
-                  {r.emoji} <span className="text-[10px] text-slate-400">{r.count}</span>
-                </motion.div>
+                  <span>{r.emoji}</span>
+                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{r.count}</span>
+                </motion.button>
              ))}
+             <button
+               type="button"
+               onClick={(e) => {
+                 e.stopPropagation();
+                 setShowMenu(true);
+               }}
+               className="p-1 rounded-full bg-slate-200/50 dark:bg-slate-800/50 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+               title="Add reaction"
+             >
+               <Plus className="w-3 h-3" />
+             </button>
           </div>
         )}
 

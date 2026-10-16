@@ -1,11 +1,21 @@
 import { motion } from 'framer-motion';
-import { Reply, Copy, Pin, Smile } from 'lucide-react';
+import { Reply, Copy, Pin, Forward } from 'lucide-react';
 
-export default function MessageActionMenu({ onReply, onCopy, onPin, onReact, isOwn, isAdmin }) {
+const QUICK_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '👏'];
+
+export default function MessageActionMenu({ 
+  onReply, 
+  onForward,
+  onCopy, 
+  onPin, 
+  onReact, 
+  isOwn, 
+  isAdmin 
+}) {
   const actions = [
     { icon: <Reply className="w-4 h-4" />, label: 'Reply', onClick: onReply },
+    { icon: <Forward className="w-4 h-4" />, label: 'Forward', onClick: onForward },
     { icon: <Copy className="w-4 h-4" />, label: 'Copy', onClick: onCopy },
-    { icon: <Smile className="w-4 h-4" />, label: 'React', onClick: onReact },
   ];
 
   if (isAdmin || isOwn) {
@@ -14,23 +24,53 @@ export default function MessageActionMenu({ onReply, onCopy, onPin, onReact, isO
 
   return (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+      initial={{ opacity: 0, scale: 0.9, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: 10 }}
-      className="absolute -top-12 right-0 bg-slate-800/90 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-xl flex items-center p-1 z-10"
+      exit={{ opacity: 0, scale: 0.9, y: 8 }}
+      transition={{ duration: 0.15 }}
+      onClick={(e) => e.stopPropagation()}
+      className={`absolute -top-16 ${isOwn ? 'right-0' : 'left-0'} flex flex-col items-center gap-1 z-30 select-none`}
     >
-      {actions.map((act, i) => (
-        <button
-          key={i}
-          onClick={(e) => { e.stopPropagation(); act.onClick(); }}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors group relative"
-        >
-          {act.icon}
-          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-900 text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            {act.label}
-          </span>
-        </button>
-      ))}
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl p-1 flex items-center gap-1">
+        {/* Quick Emoji Reaction Strip */}
+        <div className="flex items-center gap-0.5 px-1 border-r border-slate-200 dark:border-slate-700/80">
+          {QUICK_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReact(emoji);
+              }}
+              className="w-7 h-7 flex items-center justify-center text-sm rounded-lg hover:scale-125 hover:bg-slate-100 dark:hover:bg-slate-800 transition-transform active:scale-95"
+              title={`React with ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-0.5">
+          {actions.map((act, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                act.onClick();
+              }}
+              className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors group relative"
+              title={act.label}
+            >
+              {act.icon}
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow">
+                {act.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }

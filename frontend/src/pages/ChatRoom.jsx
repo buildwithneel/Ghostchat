@@ -316,7 +316,7 @@ export default function ChatRoom() {
   );
 
   return (
-    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-500 bg-slate-100 dark:bg-[#080b12]`}>
+    <div className="h-full w-full max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-300 bg-slate-100 dark:bg-[#080b12]">
       
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
@@ -367,7 +367,7 @@ export default function ChatRoom() {
       </AnimatePresence>
 
       {/* Main Chat Area */}
-      <main ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10 scrollbar-hide">
+      <main ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 md:px-8 relative z-10 overscroll-contain">
         <div className="max-w-4xl mx-auto flex flex-col pt-4 min-h-full">
           
           {/* Pinned Messages Area */}

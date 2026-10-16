@@ -80,7 +80,7 @@ export default function InstallPrompt() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 50, scale: 0.95 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:max-w-md z-50 bg-slate-900/95 border border-indigo-500/30 rounded-2xl p-4 shadow-2xl backdrop-blur-xl"
+        className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-slate-900/95 border border-indigo-500/30 rounded-2xl p-3.5 sm:p-4 shadow-2xl backdrop-blur-xl"
       >
         <div className="flex items-start gap-3.5">
           {/* App Icon */}
