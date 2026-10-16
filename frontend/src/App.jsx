@@ -5,7 +5,7 @@ import InstallPrompt from './components/InstallPrompt';
 
 function App() {
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 selection:bg-violet-500/30 font-sans flex items-center justify-center container mx-auto p-4 md:p-8">
+    <div className="h-[100dvh] w-full overflow-hidden bg-slate-100 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 selection:bg-violet-500/30 font-sans transition-colors duration-300 flex flex-col">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/room/:roomId" element={<ChatRoom />} />

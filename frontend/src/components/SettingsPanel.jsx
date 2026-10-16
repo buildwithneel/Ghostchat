@@ -30,15 +30,15 @@ export default function SettingsPanel({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-80 max-w-[90vw] glass-panel bg-slate-900/90 border-l border-slate-700/50 z-50 flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.5)]"
+            className="fixed right-0 top-0 bottom-0 w-80 max-w-[90vw] bg-white/95 dark:bg-slate-900/95 border-l border-slate-200 dark:border-slate-800 z-50 flex flex-col shadow-2xl backdrop-blur-xl transition-colors"
           >
-            <div className="flex items-center justify-between p-6 border-b border-slate-800">
-              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 Settings
               </h2>
               <button 
                 onClick={onClose}
-                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-300 transition-colors"
+                className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -55,46 +55,46 @@ export default function SettingsPanel({
                   {getInitials(username)}
                   <button 
                     onClick={() => { onClose(); onEditName(); }}
-                    className="absolute -bottom-1 -right-1 p-2 bg-indigo-500 rounded-full hover:bg-indigo-400 transition-colors shadow-lg border-2 border-slate-900"
+                    className="absolute -bottom-1 -right-1 p-2 bg-indigo-500 rounded-full hover:bg-indigo-400 transition-colors shadow-lg border-2 border-white dark:border-slate-900"
                   >
                     <Edit3 className="w-4 h-4 text-white" />
                   </button>
                 </div>
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold text-white">{username}</h3>
-                  <p className="text-sm text-slate-400">Current Alias</p>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{username}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Current Alias</p>
                 </div>
               </div>
 
               {/* Preferences */}
               <div className="space-y-4">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preferences</h4>
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Preferences</h4>
                 
-                <div className="flex items-center justify-between p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                <div className="flex items-center justify-between p-3.5 bg-slate-100 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/50">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-700/50 rounded-lg text-amber-300">
-                      {isDarkTheme ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5" />}
+                    <div className="p-2 bg-slate-200/80 dark:bg-slate-700/50 rounded-lg">
+                      {isDarkTheme ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
                     </div>
-                    <span className="text-slate-200 font-medium">Dark Mode</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-medium">Dark Mode</span>
                   </div>
                   <button 
                     onClick={toggleTheme}
-                    className={`w-12 h-6 rounded-full relative transition-colors ${isDarkTheme ? 'bg-indigo-500' : 'bg-slate-600'}`}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${isDarkTheme ? 'bg-indigo-500' : 'bg-slate-300'}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isDarkTheme ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                <div className="flex items-center justify-between p-3.5 bg-slate-100 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/50">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-700/50 rounded-lg">
-                      {soundEnabled ? <Volume2 className="w-5 h-5 text-emerald-400" /> : <VolumeX className="w-5 h-5 text-red-400" />}
+                    <div className="p-2 bg-slate-200/80 dark:bg-slate-700/50 rounded-lg">
+                      {soundEnabled ? <Volume2 className="w-5 h-5 text-emerald-500" /> : <VolumeX className="w-5 h-5 text-red-500" />}
                     </div>
-                    <span className="text-slate-200 font-medium">Sound Effects</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-medium">Sound Effects</span>
                   </div>
                   <button 
                     onClick={toggleSound}
-                    className={`w-12 h-6 rounded-full relative transition-colors ${soundEnabled ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                    className={`w-12 h-6 rounded-full relative transition-colors ${soundEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>

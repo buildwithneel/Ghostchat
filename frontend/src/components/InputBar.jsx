@@ -70,7 +70,7 @@ export default function InputBar({ onSendMessage, onTyping, onOpenUpload, onSear
     <motion.div 
       initial={{ y: 50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="pb-4 pt-2 px-4 md:px-8 w-full bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent sticky bottom-0 z-30 pointer-events-none"
+      className="pb-4 pt-2 px-4 md:px-8 w-full bg-gradient-to-t from-slate-100 via-slate-100/90 dark:from-[#090d16] dark:via-[#090d16]/90 to-transparent sticky bottom-0 z-30 pointer-events-none transition-colors"
     >
       <div className="max-w-4xl mx-auto relative pointer-events-auto">
         
@@ -81,10 +81,10 @@ export default function InputBar({ onSendMessage, onTyping, onOpenUpload, onSear
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="absolute bottom-[calc(100%+10px)] right-0 md:right-16 z-50 shadow-2xl rounded-2xl overflow-hidden border border-slate-700/50"
+              className="absolute bottom-[calc(100%+10px)] right-0 md:right-16 z-50 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50"
             >
               <EmojiPicker 
-                theme="dark" 
+                theme="auto" 
                 onEmojiClick={onEmojiClick}
                 width={300}
                 height={400}
@@ -95,12 +95,12 @@ export default function InputBar({ onSendMessage, onTyping, onOpenUpload, onSear
           )}
         </AnimatePresence>
 
-        <form onSubmit={handleSend} className="glass-panel p-2 rounded-3xl flex items-end gap-2 shadow-2xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-xl transition-all">
+        <form onSubmit={handleSend} className="glass-panel p-2 rounded-3xl flex items-end gap-2 shadow-xl border border-slate-200 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl transition-all">
           
           <button 
             type="button"
             onClick={onOpenUpload}
-            className="p-3 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-full transition-colors shrink-0 group relative"
+            className="p-3 text-slate-500 hover:text-indigo-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-indigo-400 dark:hover:bg-slate-800 rounded-full transition-colors shrink-0 group relative"
             title="Upload File"
           >
             <Paperclip className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -109,13 +109,13 @@ export default function InputBar({ onSendMessage, onTyping, onOpenUpload, onSear
           <button 
             type="button"
             onClick={onSearchToggle}
-            className="p-3 hidden sm:block text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-full transition-colors shrink-0 group"
+            className="p-3 hidden sm:block text-slate-500 hover:text-emerald-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-emerald-400 dark:hover:bg-slate-800 rounded-full transition-colors shrink-0 group"
             title="Search Messages"
           >
             <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
 
-          <div className="relative flex-1 bg-slate-800/50 rounded-2xl border border-slate-700/50 focus-within:border-indigo-500/50 focus-within:bg-slate-800 transition-all flex items-center">
+          <div className="relative flex-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all flex items-center">
             <textarea
               ref={inputRef}
               value={message}
@@ -127,22 +127,22 @@ export default function InputBar({ onSendMessage, onTyping, onOpenUpload, onSear
                 }
               }}
               placeholder="Type a message... (Press '/' to focus)"
-              className="w-full bg-transparent pl-4 pr-12 py-3.5 text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 min-h-[52px] scrollbar-hide text-sm sm:text-base leading-relaxed"
+              className="w-full bg-transparent pl-4 pr-12 py-3.5 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none max-h-32 min-h-[52px] scrollbar-hide text-sm sm:text-base leading-relaxed"
               rows={1}
             />
             <button 
               type="button"
               onClick={() => setShowEmoji(!showEmoji)}
-              className="absolute right-3 bottom-3 p-1 text-slate-400 hover:text-yellow-400 transition-colors hover:bg-slate-700/50 rounded-lg"
+              className="absolute right-3 bottom-3 p-1 text-slate-400 hover:text-yellow-500 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700/50 rounded-lg"
             >
               {showEmoji ? <X className="w-5 h-5" /> : <Smile className="w-5 h-5" />}
             </button>
           </div>
 
           <button 
-            type="submit"
+            type="submit" 
             disabled={!message.trim()}
-            className="p-3.5 bg-gradient-to-tr from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] shrink-0 active:scale-95"
+            className="p-3.5 bg-gradient-to-tr from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] shrink-0 active:scale-95"
           >
             <Send className="w-5 h-5 translate-x-0.5 -translate-y-0.5" />
           </button>

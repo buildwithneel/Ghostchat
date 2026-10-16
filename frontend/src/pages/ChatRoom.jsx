@@ -16,6 +16,7 @@ import EmptyState from '../components/EmptyState';
 
 import { socket } from '../utils/socket';
 import { API_ROUTES } from '../utils/config';
+import { soundEngine } from '../utils/sound';
 
 export default function ChatRoom() {
   const { roomId } = useParams();
@@ -33,8 +34,15 @@ export default function ChatRoom() {
   const [showSettings, setShowSettings] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   
-  const [isDarkTheme, setIsDarkTheme] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isDarkTheme, setIsDarkTheme] = useState(() => {
+    const saved = localStorage.getItem('ghostchat_theme');
+    return saved !== null ? saved === 'dark' : true;
+  });
+  
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('ghostchat_sound');
+    return saved !== null ? saved === 'true' : true;
+  });
   
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -44,17 +52,6 @@ export default function ChatRoom() {
 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
-  
-  // Real-time Audio
-  const playSound = (type = 'receive') => {
-    if (!soundEnabled) return;
-    try {
-      const audioUrl = type === 'send' ? '/send.mp3' : '/notification.mp3';
-      const audio = new Audio(audioUrl);
-      audio.volume = 0.4;
-      audio.play().catch(e => console.log('Audio Blocked'));
-    } catch(e) {}
-  };
 
   const triggerConfetti = () => {
     confetti({
@@ -71,7 +68,25 @@ export default function ChatRoom() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem('ghostchat_theme', isDarkTheme ? 'dark' : 'light');
   }, [isDarkTheme]);
+
+  useEffect(() => {
+    soundEngine.enabled = soundEnabled;
+    localStorage.setItem('ghostchat_sound', soundEnabled ? 'true' : 'false');
+  }, [soundEnabled]);
+
+  const toggleTheme = () => {
+    setIsDarkTheme(prev => !prev);
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled(prev => {
+      const next = !prev;
+      soundEngine.setEnabled(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     socket.emit('join_room', roomId, (response) => {
@@ -118,7 +133,7 @@ export default function ChatRoom() {
       
       const isMsgOwn = data.username === username;
       
-      if (!isMsgOwn) playSound('receive');
+      if (!isMsgOwn) soundEngine.playReceive();
       
       if (data.message && data.message.toLowerCase().includes('party')) {
         triggerConfetti();
@@ -214,7 +229,7 @@ export default function ChatRoom() {
        id: Date.now().toString(), // local id generation for react mapping if needed
        replyTo: replyTo 
     });
-    if (soundEnabled) playSound('send');
+    soundEngine.playSend();
     if (text.toLowerCase().includes('party')) triggerConfetti();
   };
 
@@ -236,7 +251,7 @@ export default function ChatRoom() {
       if (data.success) {
         setShowUploadModal(false);
         socket.emit('send_message', { roomId, username, type: 'file', fileData: data.file, message: 'Shared a file', id: Date.now().toString() });
-        if (soundEnabled) playSound('send');
+        soundEngine.playSend();
       } else {
         alert(data.error);
       }
@@ -319,9 +334,9 @@ export default function ChatRoom() {
         onShowQr={() => setShowQr(true)}
         onShowSettings={() => setShowSettings(true)}
         isDarkTheme={isDarkTheme}
-        toggleTheme={() => setIsDarkTheme(!isDarkTheme)}
+        toggleTheme={toggleTheme}
         soundEnabled={soundEnabled}
-        toggleSound={() => setSoundEnabled(!soundEnabled)}
+        toggleSound={toggleSound}
       />
 
       {/* Global Search Bar Dropdown */}
@@ -449,9 +464,9 @@ export default function ChatRoom() {
         username={username}
         onEditName={() => setShowNameModal(true)}
         isDarkTheme={isDarkTheme}
-        toggleTheme={() => setIsDarkTheme(!isDarkTheme)}
+        toggleTheme={toggleTheme}
         soundEnabled={soundEnabled}
-        toggleSound={() => setSoundEnabled(!soundEnabled)}
+        toggleSound={toggleSound}
         onClearChat={clearChat}
         onLeaveRoom={leaveRoom}
       />
