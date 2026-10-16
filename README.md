@@ -168,6 +168,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 <div align="center">
 
-Built with ❤️ by [BuildWithNeel](https://github.com/buildwithneel)
+Built with ❤️ by [buildwithneel](https://github.com/buildwithneel)
 
 </div>
