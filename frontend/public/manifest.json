@@ -1,21 +1,31 @@
 {
+  "id": "/",
   "name": "GhostChat - Anonymous Ephemeral Chat",
   "short_name": "GhostChat",
-  "description": "Privacy-first, ephemeral group chat with self-destructing files and zero logins.",
-  "start_url": "/",
+  "description": "Privacy-first, ephemeral group chat. No login, no logs. Self-destructing files, view-once media, password-protected rooms.",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "orientation": "portrait-primary",
+  "background_color": "#080b12",
+  "theme_color": "#6366f1",
+  "orientation": "portrait",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["social", "utilities", "productivity", "security"],
+  "categories": ["social", "utilities", "productivity"],
   "icons": [
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
     {
       "src": "/favicon-32x32.png",
       "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png"
     },
     {
@@ -45,21 +55,24 @@
     {
       "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
       "name": "New Room",
       "short_name": "New Room",
-      "description": "Create a new private temporary room",
-      "url": "/room/new",
+      "description": "Create a new private anonymous room instantly",
+      "url": "/?action=new-room",
       "icons": [
         {
           "src": "/icon-192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }

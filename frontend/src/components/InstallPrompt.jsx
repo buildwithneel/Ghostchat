@@ -1,163 +1,237 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Share, PlusSquare, X, Smartphone } from 'lucide-react';
+import { X, Share, Plus, Download, Smartphone, ChevronUp } from 'lucide-react';
 
+// ── Utility: detect platform ─────────────────────────────────────────────────
+function getPlatform() {
+  const ua = navigator.userAgent;
+  const isIOS =
+    (/iphone|ipad|ipod/i.test(ua) && !window.MSStream) ||
+    // iPadOS 13+ reports as Macintosh with touch support
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(ua);
+  const isSamsungBrowser = /samsungbrowser/i.test(ua);
+  const isChrome = /chrome|crios/i.test(ua) && !/edg/i.test(ua);
+  const isFirefox = /firefox|fxios/i.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua) || /version\/[\d.]+.*safari/i.test(ua);
+
+  return { isIOS, isAndroid, isSamsungBrowser, isChrome, isFirefox, isSafari };
+}
+
+function isRunningStandalone() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.includes('android-app://')
+  );
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 export default function InstallPrompt() {
+  const [show, setShow] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [showIosGuide, setShowIosGuide] = useState(false);
+  const platformRef = useRef(getPlatform());
+  const platform = platformRef.current;
 
   useEffect(() => {
-    // 1. Check if already installed / in standalone mode
-    const isStandaloneMode = 
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true ||
-      document.referrer.includes('android-app://');
+    // Never show if already installed
+    if (isRunningStandalone()) return;
 
-    if (isStandaloneMode) {
-      setIsStandalone(true);
-      return;
-    }
+    // Check if user dismissed recently (7-day cooldown)
+    try {
+      const ts = localStorage.getItem('ghostchat_pwa_dismissed');
+      if (ts && Date.now() - parseInt(ts, 10) < 7 * 24 * 60 * 60 * 1000) return;
+    } catch {}
 
-    // 2. Check dismissal cooldown (dismissed within last 3 days)
-    const lastDismissed = localStorage.getItem('ghostchat_pwa_dismissed');
-    if (lastDismissed && Date.now() - parseInt(lastDismissed) < 3 * 24 * 60 * 60 * 1000) {
-      setDismissed(true);
-    }
+    // Delay before showing so it doesn't fight for attention on first load
+    const timer = setTimeout(() => {
+      if (platform.isIOS && platform.isSafari) {
+        // iOS Safari: manual install via Share sheet
+        setShow(true);
+      }
+    }, 3500);
 
-    // 3. Detect iOS device
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent) && !window.MSStream;
-    setIsIOS(isIosDevice);
-
-    // 4. Capture Chromium/Android install prompt
-    const handleBeforeInstallPrompt = (e) => {
+    // Android / Chrome: listen for native prompt
+    const handleBeforeInstall = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      clearTimeout(timer);
+      setShow(true);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    // Also show after install completes (cleanup)
+    const handleInstalled = () => {
+      setShow(false);
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('appinstalled', handleInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      clearTimeout(timer);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleInstalled);
     };
-  }, []);
+  }, [platform.isIOS, platform.isSafari]);
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    setShowIosGuide(false);
-    localStorage.setItem('ghostchat_pwa_dismissed', Date.now().toString());
+  const dismiss = () => {
+    setShow(false);
+    setShowIOSGuide(false);
+    try {
+      localStorage.setItem('ghostchat_pwa_dismissed', Date.now().toString());
+    } catch {}
   };
 
-  const handleInstallClick = async () => {
+  const handleInstall = async () => {
     if (deferredPrompt) {
+      // Android/Chrome: trigger native install dialog
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
+        setShow(false);
         setDeferredPrompt(null);
       }
-    } else if (isIOS) {
-      setShowIosGuide(true);
+    } else if (platform.isIOS) {
+      // iOS: show manual instructions
+      setShowIOSGuide((prev) => !prev);
     }
   };
 
-  if (isStandalone || dismissed) {
-    return null;
-  }
+  if (!show) return null;
 
-  // Only show if we either have the deferred prompt (Android/Chrome) or on iOS Safari
-  if (!deferredPrompt && !isIOS) {
-    return null;
-  }
+  const isIOSManual = platform.isIOS && !deferredPrompt;
 
   return (
     <AnimatePresence>
-      <motion.aside
-        aria-label="Install GhostChat application"
-        initial={{ opacity: 0, y: 50, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 50, scale: 0.95 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-slate-900/95 border border-indigo-500/30 rounded-2xl p-3.5 sm:p-4 shadow-2xl backdrop-blur-xl"
+      <motion.div
+        key="install-prompt"
+        initial={{ opacity: 0, y: 80 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 80 }}
+        transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+        className="fixed bottom-0 left-0 right-0 z-[9999] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       >
-        <div className="flex items-start gap-3.5">
-          {/* App Icon */}
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-0.5 shadow-md shrink-0">
-            <img 
-              src="/icon-192.png" 
-              alt="GhostChat" 
-              className="w-full h-full object-cover rounded-[10px]"
-            />
-          </div>
-
-          {/* Details */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
-                <Smartphone className="w-4 h-4 text-indigo-400" /> Install GhostChat
-              </h3>
-              <button 
-                onClick={handleDismiss} 
-                className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800/60 transition-colors"
-                title="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <div className="max-w-lg mx-auto bg-slate-900/98 border border-slate-700/70 rounded-2xl shadow-2xl backdrop-blur-2xl overflow-hidden">
+          {/* ── Main Row ── */}
+          <div className="flex items-center gap-3 p-3.5">
+            {/* App Icon */}
+            <div className="shrink-0 w-12 h-12 rounded-2xl overflow-hidden shadow-lg border border-white/10">
+              <img src="/icon-192.png" alt="GhostChat" className="w-full h-full object-cover" />
             </div>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              {isIOS 
-                ? 'Add to your Home Screen for full-screen anonymous messaging.'
-                : 'Install as an app for fast launch and standalone mode.'}
-            </p>
 
-            {/* iOS Instructions Dropdown */}
-            {showIosGuide && isIOS && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3 p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 text-xs text-slate-300 space-y-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Share className="w-4 h-4 text-indigo-400 shrink-0" />
-                  <span>1. Tap the <strong>Share</strong> button in Safari toolbar.</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <PlusSquare className="w-4 h-4 text-purple-400 shrink-0" />
-                  <span>2. Scroll down & tap <strong>Add to Home Screen</strong>.</span>
-                </div>
-              </motion.div>
-            )}
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                Install GhostChat
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-snug">
+                {isIOSManual
+                  ? 'Add to Home Screen for full-screen, offline-ready chat.'
+                  : 'Install for offline access, fast launch & a native app feel.'}
+              </p>
+            </div>
 
-            {/* Action Buttons */}
-            <div className="mt-3 flex items-center gap-2">
+            {/* Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
-                onClick={handleInstallClick}
-                className="flex items-center justify-center gap-2 text-xs font-medium px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                onClick={handleInstall}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-semibold rounded-xl shadow-md active:scale-95 transition-transform"
               >
-                {isIOS ? (
+                {isIOSManual ? (
                   <>
                     <Share className="w-3.5 h-3.5" />
-                    {showIosGuide ? 'Follow Steps Above' : 'Install on iOS'}
+                    How to
                   </>
                 ) : (
                   <>
                     <Download className="w-3.5 h-3.5" />
-                    Install App
+                    Install
                   </>
                 )}
               </button>
               <button
-                onClick={handleDismiss}
-                className="text-xs font-medium px-3 py-2 rounded-xl text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-colors"
+                onClick={dismiss}
+                className="p-2 text-slate-500 hover:text-slate-300 rounded-xl hover:bg-slate-800/60 transition-colors"
+                aria-label="Dismiss"
               >
-                Maybe later
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
+
+          {/* ── iOS Guide ── */}
+          <AnimatePresence>
+            {showIOSGuide && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4 pt-1 border-t border-slate-800/80">
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Add to Home Screen
+                  </p>
+
+                  <div className="space-y-3">
+                    {/* Step 1 */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-indigo-400 font-bold text-xs">1</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          Tap the{' '}
+                          <span className="inline-flex items-center gap-0.5 text-indigo-300 font-semibold">
+                            <Share className="w-3 h-3" /> Share
+                          </span>{' '}
+                          button at the bottom of your Safari browser bar.
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          ⚠️ This only works in <strong>Safari</strong> — not Chrome or Firefox on iOS.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-purple-400 font-bold text-xs">2</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed flex-1">
+                        Scroll down in the share sheet and tap{' '}
+                        <span className="inline-flex items-center gap-0.5 text-purple-300 font-semibold">
+                          <Plus className="w-3 h-3" /> Add to Home Screen
+                        </span>.
+                      </p>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-emerald-400 font-bold text-xs">3</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed flex-1">
+                        Tap <strong className="text-white">Add</strong> in the top-right corner. GhostChat will
+                        appear on your Home Screen like a native app.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* iOS Safari indicator arrow */}
+                  <div className="flex items-center justify-center mt-3 text-slate-500 text-[11px] gap-1">
+                    <ChevronUp className="w-3 h-3 animate-bounce" />
+                    Share button is at the bottom of Safari
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </motion.aside>
+      </motion.div>
     </AnimatePresence>
   );
 }
