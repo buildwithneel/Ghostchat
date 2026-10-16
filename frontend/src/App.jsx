@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import ChatRoom from './pages/ChatRoom';
+import InstallPrompt from './components/InstallPrompt';
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/room/:roomId" element={<ChatRoom />} />
       </Routes>
+      <InstallPrompt />
     </div>
   );
 }

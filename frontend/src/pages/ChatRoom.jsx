@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
@@ -15,7 +14,8 @@ import WelcomeMessage from '../components/WelcomeMessage';
 import SettingsPanel from '../components/SettingsPanel';
 import EmptyState from '../components/EmptyState';
 
-const socket = io('http://localhost:3000');
+import { socket } from '../utils/socket';
+import { API_ROUTES } from '../utils/config';
 
 export default function ChatRoom() {
   const { roomId } = useParams();
@@ -228,7 +228,7 @@ export default function ChatRoom() {
     formData.append('viewOnce', viewOnce);
 
     try {
-      const res = await fetch('http://localhost:3000/api/files/upload', {
+      const res = await fetch(API_ROUTES.upload, {
         method: 'POST',
         body: formData,
       });

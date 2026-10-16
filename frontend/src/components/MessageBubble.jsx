@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Download, File, Lock, Clock, EyeOff, Pin, ThumbsUp, Heart, Flame, Laugh } from 'lucide-react';
 import MessageActionMenu from './MessageActionMenu';
 import { getUserColor, getInitials } from '../utils/colors';
+import { API_ROUTES } from '../utils/config';
 
 export default function MessageBubble({ 
   message, 
@@ -179,7 +180,7 @@ function FilePreview({ fileData }) {
       if (!pwd) return;
       setIsDownloading(true);
       try {
-        const res = await fetch(`http://localhost:3000/api/files/download/${fileData.fileId}`, {
+        const res = await fetch(API_ROUTES.download(fileData.fileId), {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ password: pwd })
@@ -202,7 +203,7 @@ function FilePreview({ fileData }) {
     }
 
     if (actionType === 'download') {
-      window.open(`http://localhost:3000/api/files/view/${fileData.fileId}?token=${token || ''}`, '_blank');
+      window.open(API_ROUTES.view(fileData.fileId, token), '_blank');
     } else if (actionType === 'view') {
       setShowMedia(true);
     }
@@ -216,7 +217,7 @@ function FilePreview({ fileData }) {
   const isVideo = fileData.mimeType?.startsWith('video/');
   const canPreview = isImage || isVideo;
   
-  const mediaUrl = `http://localhost:3000/api/files/view/${fileData.fileId}?token=${viewToken || ''}`;
+  const mediaUrl = API_ROUTES.view(fileData.fileId, viewToken);
 
   return (
     <div className="flex flex-col min-w-[220px]">

@@ -1,31 +1,25 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import { socket } from '../utils/socket';
 
 const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
-  const [socket, setSocket] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(socket.connected);
 
   useEffect(() => {
-    // Connect to the backend
-    const URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-    const newSocket = io(URL, {
-        reconnectionDelayMax: 10000,
-    });
-    
-    setSocket(newSocket);
-    
-    newSocket.on('connect', () => {
+    const handleConnect = () => setIsConnected(true);
+    const handleDisconnect = () => setIsConnected(false);
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    if (socket.connected) {
       setIsConnected(true);
-    });
-    
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+    }
 
     return () => {
-      newSocket.disconnect();
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
     };
   }, []);
 
