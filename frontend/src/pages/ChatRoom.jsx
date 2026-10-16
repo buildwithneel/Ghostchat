@@ -19,6 +19,7 @@ import RoomPasswordModal from '../components/RoomPasswordModal';
 import { socket } from '../utils/socket';
 import { API_ROUTES } from '../utils/config';
 import { soundEngine } from '../utils/sound';
+import { useTheme } from '../App';
 
 export default function ChatRoom() {
   const { roomId } = useParams();
@@ -47,20 +48,21 @@ export default function ChatRoom() {
   const [passwordError, setPasswordError] = useState('');
   const [forwardNotice, setForwardNotice] = useState(null);
 
-  // Theme & Sound
-  const [isDarkTheme, setIsDarkTheme] = useState(() => {
-    const saved = localStorage.getItem('ghostchat_theme');
-    return saved !== null ? saved === 'dark' : true;
-  });
-  
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('ghostchat_sound');
-    return saved !== null ? saved === 'true' : true;
-  });
-  
+  // Theme & Sound — managed by App.jsx ThemeContext (single source of truth)
+  const { isDarkTheme, toggleTheme, soundEnabled, toggleSound: ctxToggleSound } = useTheme();
+
+  // Keep soundEngine in sync with context
+  useEffect(() => {
+    soundEngine.enabled = soundEnabled;
+  }, [soundEnabled]);
+
+  const toggleSound = () => {
+    soundEngine.setEnabled(!soundEnabled);
+    ctxToggleSound();
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -73,32 +75,6 @@ export default function ChatRoom() {
       spread: 70,
       origin: { y: 0.6 },
       colors: ['#6366f1', '#a855f7', '#ec4899', '#facc15']
-    });
-  };
-
-  useEffect(() => {
-    if (isDarkTheme) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('ghostchat_theme', isDarkTheme ? 'dark' : 'light');
-  }, [isDarkTheme]);
-
-  useEffect(() => {
-    soundEngine.enabled = soundEnabled;
-    localStorage.setItem('ghostchat_sound', soundEnabled ? 'true' : 'false');
-  }, [soundEnabled]);
-
-  const toggleTheme = () => {
-    setIsDarkTheme(prev => !prev);
-  };
-
-  const toggleSound = () => {
-    setSoundEnabled(prev => {
-      const next = !prev;
-      soundEngine.setEnabled(next);
-      return next;
     });
   };
 

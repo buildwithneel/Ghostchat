@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ghost, Shield, Zap, Search, Moon, Sun, Lock, Clock, Trash2, ArrowRight } from 'lucide-react';
 import CreateRoomModal from '../components/CreateRoomModal';
+import { useTheme } from '../App';
 
 export default function Home() {
   const [roomId, setRoomId] = useState('');
@@ -10,19 +11,8 @@ export default function Home() {
   const [recentRooms, setRecentRooms] = useState([]);
   const navigate = useNavigate();
 
-  const [isDarkTheme, setIsDarkTheme] = useState(() => {
-    const saved = localStorage.getItem('ghostchat_theme');
-    return saved !== null ? saved === 'dark' : true;
-  });
-
-  useEffect(() => {
-    if (isDarkTheme) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('ghostchat_theme', isDarkTheme ? 'dark' : 'light');
-  }, [isDarkTheme]);
+  // Use shared theme from App context instead of local state
+  const { isDarkTheme, toggleTheme } = useTheme();
 
   useEffect(() => {
     try {
@@ -34,10 +24,6 @@ export default function Home() {
       setRecentRooms([]);
     }
   }, []);
-
-  const toggleTheme = () => {
-    setIsDarkTheme(prev => !prev);
-  };
 
   const handleCreateRoomSubmit = ({ roomName, roomId: customId, password }) => {
     const targetId = customId || 'new';

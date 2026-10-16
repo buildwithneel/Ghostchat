@@ -28,6 +28,22 @@
     <meta name="apple-mobile-web-app-title" content="GhostChat" />
   </head>
   <body>
+    <!-- Blocking theme init: apply dark class before React renders to avoid flash -->
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('ghostchat_theme');
+          // Default to dark if nothing saved
+          if (theme === null || theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch(e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
