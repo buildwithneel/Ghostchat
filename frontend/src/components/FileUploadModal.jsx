@@ -1,13 +1,25 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Upload, Lock, Clock, EyeOff } from 'lucide-react';
 
-export default function FileUploadModal({ isOpen, onClose, onUpload }) {
-  const [selectedFile, setSelectedFile] = useState(null);
+export default function FileUploadModal({ isOpen, onClose, onUpload, initialFile = null }) {
+  const [selectedFile, setSelectedFile] = useState(initialFile);
   const [password, setPassword] = useState('');
   const [viewOnce, setViewOnce] = useState(false);
   const [expiryHours, setExpiryHours] = useState('1'); // Expiry in hours
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialFile) {
+        setSelectedFile(initialFile);
+      }
+    } else {
+      setSelectedFile(null);
+      setPassword('');
+      setViewOnce(false);
+    }
+  }, [isOpen, initialFile]);
 
   if (!isOpen) return null;
 

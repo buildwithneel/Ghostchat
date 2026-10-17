@@ -65,6 +65,9 @@ export default function ChatRoom() {
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -154,6 +157,60 @@ export default function ChatRoom() {
        if (scrollEl) scrollEl.removeEventListener('scroll', handleScroll);
     };
   }, [roomId, attemptJoin, location.state]);
+
+  // Mobile virtual keyboard & visual viewport synchronization
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleViewportChange = () => {
+      if (window.visualViewport) {
+        const vv = window.visualViewport;
+        setViewportHeight(vv.height);
+
+        // Keyboard is active if visual viewport height dropped significantly below screen height
+        const keyboardActive = vv.height < (window.innerHeight - 80);
+        setIsKeyboardOpen(keyboardActive);
+
+        // Keep page scroll locked at top (prevent iOS Safari unwanted window offset)
+        if (window.scrollY > 0) {
+          window.scrollTo(0, 0);
+        }
+
+        if (keyboardActive) {
+          // Scroll to the latest message so user sees context above keyboard
+          setTimeout(() => {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 80);
+        }
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
+      handleViewportChange();
+    }
+    window.addEventListener('resize', handleViewportChange);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+      }
+      window.removeEventListener('resize', handleViewportChange);
+    };
+  }, []);
+
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 120);
+  };
+
+  const handleOpenUpload = (file = null) => {
+    setUploadFile(file || null);
+    setShowUploadModal(true);
+  };
 
   useEffect(() => {
     const isAtBottom = () => {
@@ -361,7 +418,13 @@ export default function ChatRoom() {
   );
 
   return (
-    <div className="h-full w-full max-h-[100dvh] overflow-hidden flex flex-col font-sans transition-colors duration-300 bg-slate-100 dark:bg-[#080b12]">
+    <div 
+      style={{ 
+        height: viewportHeight ? `${viewportHeight}px` : '100%',
+        maxHeight: viewportHeight ? `${viewportHeight}px` : '100dvh'
+      }}
+      className="w-full overflow-hidden flex flex-col font-sans transition-[height] duration-150 bg-slate-100 dark:bg-[#080b12] fixed inset-0 md:relative"
+    >
       
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
@@ -467,6 +530,7 @@ export default function ChatRoom() {
                  isOwn={msg.username === username} 
                  isAdmin={isAdmin}
                  isConsecutive={isConsecutive}
+                 currentUsername={username}
                  onKickUser={kickUser}
                  onPinMessage={pinMessage}
                  onReact={reactToMessage}
@@ -519,10 +583,12 @@ export default function ChatRoom() {
       <InputBar 
         onSendMessage={sendMessage} 
         onTyping={handleTypingActivity} 
-        onOpenUpload={() => setShowUploadModal(true)} 
+        onOpenUpload={handleOpenUpload} 
         onSearchToggle={() => setShowSearch(!showSearch)}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
+        isKeyboardOpen={isKeyboardOpen}
+        onInputFocus={handleInputFocus}
       />
 
       {/* Modals */}
@@ -548,8 +614,12 @@ export default function ChatRoom() {
 
       <FileUploadModal 
         isOpen={showUploadModal} 
-        onClose={() => setShowUploadModal(false)} 
+        onClose={() => {
+          setShowUploadModal(false);
+          setUploadFile(null);
+        }} 
         onUpload={handleFileUpload} 
+        initialFile={uploadFile}
       />
 
       <ForwardModal

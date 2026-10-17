@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Reply, Copy, Pin, Forward } from 'lucide-react';
+import { Reply, Copy, Pin, Forward, Check } from 'lucide-react';
 
 const QUICK_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '👏'];
 
@@ -12,10 +13,22 @@ export default function MessageActionMenu({
   isOwn, 
   isAdmin 
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyClick = () => {
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   const actions = [
     { icon: <Reply className="w-4 h-4" />, label: 'Reply', onClick: onReply },
     { icon: <Forward className="w-4 h-4" />, label: 'Forward', onClick: onForward },
-    { icon: <Copy className="w-4 h-4" />, label: 'Copy', onClick: onCopy },
+    { 
+      icon: copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />, 
+      label: copied ? 'Copied!' : 'Copy', 
+      onClick: handleCopyClick 
+    },
   ];
 
   if (isAdmin || isOwn) {
@@ -29,7 +42,7 @@ export default function MessageActionMenu({
       exit={{ opacity: 0, scale: 0.9, y: 8 }}
       transition={{ duration: 0.15 }}
       onClick={(e) => e.stopPropagation()}
-      className={`absolute -top-16 ${isOwn ? 'right-0' : 'left-0'} flex flex-col items-center gap-1 z-30 select-none`}
+      className={`absolute -top-12 ${isOwn ? 'right-0' : 'left-0'} flex flex-col items-center pb-2 z-30 select-none`}
     >
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl p-1 flex items-center gap-1">
         {/* Quick Emoji Reaction Strip */}

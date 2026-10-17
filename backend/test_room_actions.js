@@ -108,6 +108,19 @@ async function runTests() {
   }
   console.log('✓ Test 8c: Multi-user reactions increment properly');
 
+  // Alice replaces reaction from 🔥 to 👍 (Bob's 🔥 should stay, Alice's 🔥 replaced with 👍)
+  addMessageReaction('ROOM_A', 'msg_1', '👍', 'Alice');
+  const rx4 = rooms.get('ROOM_A').messages.find(m => m.id === 'msg_1').reactions;
+  const flameAfter = rx4.find(r => r.emoji === '🔥');
+  const thumbsUp = rx4.find(r => r.emoji === '👍');
+  if (!flameAfter || flameAfter.count !== 1 || flameAfter.users.includes('Alice') || !flameAfter.users.includes('Bob')) {
+    throw new Error('Test 8d Failed: Previous reaction was not replaced or other user was not preserved');
+  }
+  if (!thumbsUp || thumbsUp.count !== 1 || !thumbsUp.users.includes('Alice')) {
+    throw new Error('Test 8d Failed: New replaced reaction was not added');
+  }
+  console.log('✓ Test 8d: Emoji replacement for same user works cleanly while preserving other users');
+
   // 9. Forwarding Message from Room A to Room B
   const forwardResult = await forwardMessageToRoom({
     targetRoomId: 'ROOM_B',

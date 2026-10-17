@@ -10,20 +10,64 @@ export default function MessageBubble({
   isOwn, 
   isAdmin, 
   isConsecutive,
+  currentUsername,
   onPinMessage, 
   onKickUser,
   onReact,
   onReply,
   onForward
 }) {
-  const [showMenu, setShowMenu] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const showMenu = isMenuOpen || isHovered;
   const touchTimerRef = useRef(null);
   const bubbleRef = useRef(null);
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+    setIsHovered(false);
+  };
+
+  const handleCopy = async () => {
+    closeMenu();
+    const textToCopy = message.type === 'file'
+      ? (message.fileData?.originalName || message.message || '')
+      : (message.message || '');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch (e) {
+      console.warn('Copy failed:', e);
+    }
+  };
+
+  const scrollToReplyTarget = (e) => {
+    e.stopPropagation();
+    if (!message.replyTo?.id) return;
+    const target = document.getElementById(`msg-${message.replyTo.id}`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('ring-2', 'ring-indigo-500/80', 'rounded-2xl', 'transition-all');
+      setTimeout(() => {
+        target.classList.remove('ring-2', 'ring-indigo-500/80', 'rounded-2xl');
+      }, 1500);
+    }
+  };
 
   useEffect(() => {
     const handleGlobalClick = (e) => {
       if (bubbleRef.current && !bubbleRef.current.contains(e.target)) {
-        setShowMenu(false);
+        closeMenu();
       }
     };
     if (showMenu) {
@@ -38,7 +82,7 @@ export default function MessageBubble({
   // Touch handlers for mobile long-press
   const handleTouchStart = () => {
     touchTimerRef.current = setTimeout(() => {
-      setShowMenu(true);
+      setIsMenuOpen(true);
       if (navigator.vibrate) navigator.vibrate(50);
     }, 450);
   };
@@ -68,13 +112,14 @@ export default function MessageBubble({
   return (
     <motion.div 
       ref={bubbleRef}
+      id={`msg-${message.id}`}
       initial={{ opacity: 0, scale: 0.95, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       layout
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
       className={`flex mb-2 max-w-[85%] relative group ${isOwn ? 'ml-auto justify-end' : 'mr-auto justify-start'} ${!isConsecutive ? 'mt-4' : ''}`}
-      onMouseEnter={() => setShowMenu(true)}
-      onMouseLeave={() => setShowMenu(false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
@@ -109,23 +154,20 @@ export default function MessageBubble({
           {showMenu && (
              <MessageActionMenu
                 onReply={() => {
-                  setShowMenu(false);
+                  closeMenu();
                   onReply(message);
                 }}
                 onForward={() => {
-                  setShowMenu(false);
+                  closeMenu();
                   if (onForward) onForward(message);
                 }}
-                onCopy={() => {
-                  setShowMenu(false);
-                  navigator.clipboard.writeText(message.message || '');
-                }}
+                onCopy={handleCopy}
                 onPin={() => {
-                  setShowMenu(false);
+                  closeMenu();
                   onPinMessage(message.id);
                 }}
                 onReact={(emoji) => {
-                  setShowMenu(false);
+                  closeMenu();
                   onReact(message.id, emoji);
                 }}
                 isOwn={isOwn}
@@ -136,7 +178,10 @@ export default function MessageBubble({
 
         {/* The Bubble */}
         <motion.div 
-          onClick={() => setShowMenu(prev => !prev)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsMenuOpen(prev => !prev);
+          }}
           whileHover={{ scale: 1.005, y: -0.5 }}
           className={`relative px-4 py-2.5 rounded-2xl break-words whitespace-pre-wrap shadow-md max-w-full z-0 transition-shadow cursor-pointer ${
           isOwn 
@@ -170,7 +215,11 @@ export default function MessageBubble({
 
           {/* Reply Context / Thread Reference */}
           {message.replyTo && (
-            <div className="text-xs bg-black/25 text-slate-300 p-2.5 rounded-xl mb-2.5 border-l-4 border-indigo-400 backdrop-blur-sm truncate max-w-[280px]">
+            <div 
+              onClick={scrollToReplyTarget}
+              title="Click to view replied message"
+              className="text-xs bg-black/25 text-slate-300 p-2.5 rounded-xl mb-2.5 border-l-4 border-indigo-400 backdrop-blur-sm truncate max-w-[280px] hover:bg-black/35 transition-colors cursor-pointer"
+            >
               <span className="font-bold text-indigo-300 block mb-0.5">
                 {message.replyTo.username}
               </span>
@@ -191,7 +240,7 @@ export default function MessageBubble({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setShowMenu(prev => !prev);
+              setIsMenuOpen(prev => !prev);
             }}
             className="sm:hidden absolute top-1 right-1 p-1 text-white/40 hover:text-white"
           >
@@ -214,29 +263,36 @@ export default function MessageBubble({
         {/* Reactions Render */}
         {message.reactions && message.reactions.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 mt-1.5 z-10 relative">
-             {message.reactions.map((r, i) => (
-                <motion.button 
-                  key={`${r.emoji}-${i}`}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReact(message.id, r.emoji);
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700/60 rounded-full px-2.5 py-0.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  title="Click to toggle reaction"
-                >
-                  <span>{r.emoji}</span>
-                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{r.count}</span>
-                </motion.button>
-             ))}
+             {message.reactions.map((r, i) => {
+                const hasUserReacted = Array.isArray(r.users) && currentUsername && r.users.includes(currentUsername);
+                return (
+                  <motion.button 
+                    key={`${r.emoji}-${i}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReact(message.id, r.emoji);
+                    }}
+                    whileTap={{ scale: 0.9 }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className={`backdrop-blur-md rounded-full px-2.5 py-0.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all ${
+                      hasUserReacted
+                        ? 'bg-indigo-500/15 border border-indigo-500/60 text-indigo-600 dark:text-indigo-400 font-semibold ring-1 ring-indigo-500/30'
+                        : 'bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                    title={hasUserReacted ? `You reacted with ${r.emoji} (click to remove)` : `React with ${r.emoji}`}
+                  >
+                    <span>{r.emoji}</span>
+                    <span className={`text-[11px] font-bold ${hasUserReacted ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>{r.count}</span>
+                  </motion.button>
+                );
+             })}
              <button
                type="button"
                onClick={(e) => {
                  e.stopPropagation();
-                 setShowMenu(true);
+                 setIsMenuOpen(true);
                }}
                className="p-1 rounded-full bg-slate-200/50 dark:bg-slate-800/50 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                title="Add reaction"

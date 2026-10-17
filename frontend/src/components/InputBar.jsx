@@ -9,13 +9,31 @@ export default function InputBar({
   onOpenUpload,
   onSearchToggle,
   replyingTo,
-  onCancelReply
+  onCancelReply,
+  isKeyboardOpen = false,
+  onInputFocus
 }) {
   const [message, setMessage] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const emojiRef = useRef(null);
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          const file = items[i].getAsFile();
+          if (file && onOpenUpload) {
+            e.preventDefault();
+            onOpenUpload(file);
+            return;
+          }
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -89,7 +107,11 @@ export default function InputBar({
     <motion.div 
       initial={{ y: 50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="shrink-0 w-full px-2 sm:px-4 md:px-8 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-slate-100 via-slate-100/95 dark:from-[#090d16] dark:via-[#090d16]/95 to-transparent z-30 transition-colors pointer-events-none"
+      className={`shrink-0 w-full px-2 sm:px-4 md:px-8 pt-1 transition-[padding,colors] duration-150 pointer-events-none z-30 bg-gradient-to-t from-slate-100 via-slate-100/95 dark:from-[#090d16] dark:via-[#090d16]/95 to-transparent ${
+        isKeyboardOpen
+          ? 'pb-2'
+          : 'pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]'
+      }`}
     >
       <div className="max-w-4xl mx-auto relative pointer-events-auto flex flex-col gap-1.5">
         
@@ -175,6 +197,10 @@ export default function InputBar({
               ref={inputRef}
               value={message}
               onChange={handleTextChange}
+              onPaste={handlePaste}
+              onFocus={(e) => {
+                if (onInputFocus) onInputFocus(e);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
                   e.preventDefault();
@@ -182,7 +208,7 @@ export default function InputBar({
                 }
               }}
               placeholder={replyingTo ? `Reply to ${replyingTo.username}...` : "Type a message... (Press '/' to focus)"}
-              className="w-full bg-transparent pl-3 sm:pl-4 pr-9 sm:pr-12 py-2.5 sm:py-3.5 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none max-h-28 sm:max-h-32 min-h-[44px] sm:min-h-[52px] scrollbar-hide text-sm sm:text-base leading-relaxed"
+              className="w-full bg-transparent pl-3 sm:pl-4 pr-9 sm:pr-12 py-2.5 sm:py-3.5 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none max-h-28 sm:max-h-32 min-h-[44px] sm:min-h-[52px] scrollbar-hide text-base leading-relaxed"
               rows={1}
             />
             <button 

@@ -244,33 +244,39 @@ const addMessageReaction = (roomId, messageId, emoji, username) => {
     msg.reactions = [];
   }
 
-  const existingReactionIndex = msg.reactions.findIndex(r => r.emoji === emoji);
+  // Find previous reaction from this user on this message, if any
+  const prevReaction = msg.reactions.find(r => Array.isArray(r.users) && r.users.includes(username));
 
-  if (existingReactionIndex >= 0) {
-    const rx = msg.reactions[existingReactionIndex];
-    if (!rx.users) rx.users = [];
-
-    const userIdx = rx.users.indexOf(username);
-    if (userIdx >= 0) {
-      // User already reacted with this emoji: toggle off
-      rx.users.splice(userIdx, 1);
-      rx.count = Math.max(0, rx.count - 1);
-      if (rx.count === 0) {
-        msg.reactions.splice(existingReactionIndex, 1);
-      }
-    } else {
-      // Add user reaction
-      rx.users.push(username);
-      rx.count += 1;
-    }
+  if (prevReaction && prevReaction.emoji === emoji) {
+    // Clicking the same emoji toggles it off
+    prevReaction.users = prevReaction.users.filter(u => u !== username);
+    prevReaction.count = prevReaction.users.length;
   } else {
-    // New reaction
-    msg.reactions.push({
-      emoji,
-      count: 1,
-      users: [username]
-    });
+    // If user previously reacted with a different emoji, remove their previous reaction first
+    if (prevReaction) {
+      prevReaction.users = prevReaction.users.filter(u => u !== username);
+      prevReaction.count = prevReaction.users.length;
+    }
+
+    // Add user's reaction to the selected emoji
+    const targetReaction = msg.reactions.find(r => r.emoji === emoji);
+    if (targetReaction) {
+      if (!Array.isArray(targetReaction.users)) targetReaction.users = [];
+      if (!targetReaction.users.includes(username)) {
+        targetReaction.users.push(username);
+      }
+      targetReaction.count = targetReaction.users.length;
+    } else {
+      msg.reactions.push({
+        emoji,
+        count: 1,
+        users: [username]
+      });
+    }
   }
+
+  // Clean up any reaction objects where count is 0
+  msg.reactions = msg.reactions.filter(r => r.count > 0);
 
   room.lastActive = Date.now();
   return msg.reactions;
