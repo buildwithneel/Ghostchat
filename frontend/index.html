@@ -12,7 +12,6 @@
     <link rel="manifest" href="/manifest.json" />
 
     <!-- ═══ Theme Colors ═══ -->
-    <!-- Dual theme-color: dark for OLED/dark-mode devices, but we default to the app's indigo brand -->
     <meta name="theme-color" content="#6366f1" />
     <meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#080b12" media="(prefers-color-scheme: dark)" />
@@ -25,85 +24,70 @@
     <!-- ═══ Android / Chrome PWA ═══ -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="GhostChat" />
-    <!-- Chrome 76+ picks this up automatically from manifest, but keep for compat -->
+    <script>
+      // Early capture of beforeinstallprompt so install availability is never missed
+      window.deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.deferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available'));
+      });
+    </script>
 
     <!-- ═══ iOS / Safari PWA ═══ -->
-    <!-- apple-mobile-web-app-capable: makes Safari open in fullscreen standalone mode -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- black-translucent: extends content under the iOS status bar for edge-to-edge UI -->
+    <meta name="apple-touch-fullscreen" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GhostChat" />
 
-    <!-- iOS Touch Icons (used for Home Screen icon when saved via Safari) -->
-    <!-- List largest first so iOS picks the best match -->
+    <!-- iOS Touch Icons -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- ═══ iOS Splash Screens (Launch Images) ═══ -->
-    <!-- Without these, iOS shows a white screen during PWA launch.               -->
-    <!-- We reuse our 512px icon rendered on the app background color as splash.  -->
-    <!-- iPhone SE (1st gen) / 5 / 5s / 5c / iPod 6 - 640×1136 -->
+    <!-- ═══ iOS Splash Screens ═══ -->
     <link rel="apple-touch-startup-image"
       href="/apple-touch-icon.png"
       media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPhone 6 / 7 / 8 / SE (2nd) - 750×1334 -->
     <link rel="apple-touch-startup-image"
       href="/apple-touch-icon.png"
       media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPhone 6+ / 7+ / 8+ - 1242×2208 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone X / XS / 11 Pro - 1125×2436 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone XS Max / 11 Pro Max - 1242×2688 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone XR / 11 - 828×1792 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPhone 12 / 13 / 14 - 1170×2532 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone 12 Pro Max / 13 Pro Max / 14 Plus - 1284×2778 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone 14 Pro - 1179×2556 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone 14 Pro Max / 15 / 15 Plus - 1290×2796 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPhone 15 Pro / 15 Pro Max -->
-    <link rel="apple-touch-startup-image"
-      href="/icon-512.png"
-      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <!-- iPad (non-retina) - 768×1024 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 1) and (orientation: portrait)" />
-    <!-- iPad (retina) / iPad Air - 1536×2048 -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPad Pro 10.5" / Air 3rd Gen -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPad Pro 11" -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <!-- iPad Pro 12.9" -->
     <link rel="apple-touch-startup-image"
       href="/icon-512.png"
       media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
@@ -120,7 +104,6 @@
             document.documentElement.classList.remove('dark');
           }
         } catch(e) {
-          // If localStorage is unavailable (private mode etc.), default to dark
           document.documentElement.classList.add('dark');
         }
       })();

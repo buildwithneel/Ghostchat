@@ -16,16 +16,20 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 );
 
 // ─── Service Worker Registration ─────────────────────────────────────────────
-// We register AFTER the app is interactive so the SW install bandwidth
-// doesn't compete with the initial JS/CSS download.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+if (
+  typeof window !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  (window.location.protocol === 'https:' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1')
+) {
+  const registerSW = () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((registration) => {
         console.log('[PWA] Service Worker registered. Scope:', registration.scope);
 
-        // Check for SW updates every time the page gains focus
+        // Check for updates periodically
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (!newWorker) return;
@@ -35,20 +39,16 @@ if ('serviceWorker' in navigator) {
               newWorker.state === 'installed' &&
               navigator.serviceWorker.controller
             ) {
-              // A new SW is waiting — tell it to activate immediately.
-              // The page will reload once the new SW takes control.
-              console.log('[PWA] New version available. Activating...');
+              console.log('[PWA] New version ready. Activating...');
               newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
         });
       })
       .catch((err) => {
-        // Don't throw — PWA is an enhancement, not a requirement
         console.warn('[PWA] Service Worker registration failed:', err);
       });
 
-    // When the new SW takes control, reload once for a clean slate
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
@@ -56,5 +56,11 @@ if ('serviceWorker' in navigator) {
         window.location.reload();
       }
     });
-  });
+  };
+
+  if (document.readyState === 'complete') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }

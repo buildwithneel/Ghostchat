@@ -67,6 +67,18 @@ cron.schedule('* * * * *', () => {
   }
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n⚠️  [GhostChat Server Error] Port ${PORT} is already in use.`);
+    console.error(`Another instance of GhostChat backend is running, or another process is using port ${PORT}.`);
+    console.error(`To fix: Stop the conflicting process or change PORT in backend/.env.\n`);
+    process.exit(1);
+  } else {
+    console.error('[GhostChat Server Error]', err);
+    process.exit(1);
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });

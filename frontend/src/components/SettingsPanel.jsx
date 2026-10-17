@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Moon, Sun, Volume2, VolumeX, LogOut, Trash2, Edit3, QrCode } from 'lucide-react';
+import { X, Moon, Sun, Volume2, VolumeX, LogOut, Trash2, Edit3, QrCode, Smartphone } from 'lucide-react';
 import { getUserColor, getInitials } from '../utils/colors';
+import { isRunningStandalone } from './InstallPrompt';
 
 export default function SettingsPanel({
   isOpen,
@@ -118,6 +119,34 @@ export default function SettingsPanel({
                     </div>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent('pwa-open-install'));
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-slate-100 dark:bg-slate-800/40 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/50 transition-colors text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/10 text-purple-500 dark:text-purple-400 rounded-lg group-hover:scale-110 transition-transform">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium block text-sm">
+                        {isRunningStandalone() ? 'App Installed' : 'Install GhostChat App'}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {isRunningStandalone() ? 'Running in standalone mode' : 'Add to home screen or desktop'}
+                      </span>
+                    </div>
+                  </div>
+                  {isRunningStandalone() && (
+                    <span className="text-emerald-500 text-[11px] font-bold px-2 py-0.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                      Active
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Danger Zone */}

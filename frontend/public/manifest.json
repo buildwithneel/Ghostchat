@@ -1,11 +1,12 @@
 {
-  "id": "/",
+  "id": "/?source=pwa",
   "name": "GhostChat - Anonymous Ephemeral Chat",
   "short_name": "GhostChat",
   "description": "Privacy-first, ephemeral group chat. No login, no logs. Self-destructing files, view-once media, password-protected rooms.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#080b12",
   "theme_color": "#6366f1",
   "orientation": "portrait",
@@ -57,6 +58,22 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "GhostChat on Desktop"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "GhostChat on Mobile"
     }
   ],
   "shortcuts": [
