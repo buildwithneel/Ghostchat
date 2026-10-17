@@ -23,11 +23,26 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
-      'no-empty': 'warn',
+      'no-unused-vars': [
+        'warn',
+        {
+          varsIgnorePattern: '^[A-Z_]|motion',
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'no-empty': ['warn', { allowEmptyCatch: true }],
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+      },
     },
   },
 ])

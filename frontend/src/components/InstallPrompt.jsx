@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Share, Plus, Download, Smartphone, ChevronUp } from 'lucide-react';
 
@@ -26,13 +26,13 @@ function isRunningStandalone() {
   );
 }
 
+const platform = getPlatform();
+
 // ── Component ────────────────────────────────────────────────────────────────
 export default function InstallPrompt() {
   const [show, setShow] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const platformRef = useRef(getPlatform());
-  const platform = platformRef.current;
 
   useEffect(() => {
     // Never show if already installed
@@ -74,7 +74,7 @@ export default function InstallPrompt() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleInstalled);
     };
-  }, [platform.isIOS, platform.isSafari]);
+  }, []);
 
   const dismiss = () => {
     setShow(false);
