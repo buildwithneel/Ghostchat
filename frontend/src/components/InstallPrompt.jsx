@@ -58,29 +58,27 @@ export default function InstallPrompt() {
       return;
     }
 
+    // Clear legacy multi-day dismissal from localStorage if present
+    try {
+      localStorage.removeItem('ghostchat_pwa_dismissed');
+    } catch {}
+
     // 2. Check early captured beforeinstallprompt
     syncDeferredPrompt();
 
-    // 3. Check dismissal cooldown (unless opened manually)
+    // 3. Check session dismissal (resets per session/tab)
     let isDismissed = false;
     try {
-      const ts = localStorage.getItem('ghostchat_pwa_dismissed');
-      if (ts && Date.now() - parseInt(ts, 10) < 3 * 24 * 60 * 60 * 1000) {
+      if (sessionStorage.getItem('ghostchat_pwa_dismissed') === 'true') {
         isDismissed = true;
       }
     } catch {}
 
-    // Delay showing banner slightly so it doesn't interrupt page load
+    // Show banner quickly so it's immediately visible
     const timer = setTimeout(() => {
       if (isDismissed) return;
-
-      const plat = getPlatform();
-      if (plat.isIOS) {
-        setShow(true);
-      } else if (syncDeferredPrompt() || !plat.isIOS) {
-        setShow(true);
-      }
-    }, 2500);
+      setShow(true);
+    }, 600);
 
     // 4. Listen for beforeinstallprompt
     const handleBeforeInstall = (e) => {
@@ -99,13 +97,26 @@ export default function InstallPrompt() {
       }
     };
 
-    // 5. Listen for manual open request (from Settings)
-    const handleManualOpen = () => {
+    // 5. Listen for manual open request (from Top Bar / Settings)
+    const handleManualOpen = async () => {
       syncDeferredPrompt();
-      const plat = getPlatform();
-      if (plat.isIOS) {
-        setShowIOSGuide(true);
+      const promptEvent = window.deferredInstallPrompt;
+      if (promptEvent) {
+        try {
+          promptEvent.prompt();
+          const { outcome } = await promptEvent.userChoice;
+          if (outcome === 'accepted') {
+            setIsInstalled(true);
+            setShow(false);
+            setDeferredPrompt(null);
+            window.deferredInstallPrompt = null;
+            return;
+          }
+        } catch {
+          // If prompt fails or was consumed, fallback to banner/guide
+        }
       }
+      setShowIOSGuide(true);
       setShow(true);
     };
 
@@ -152,7 +163,7 @@ export default function InstallPrompt() {
     setShow(false);
     setShowIOSGuide(false);
     try {
-      localStorage.setItem('ghostchat_pwa_dismissed', Date.now().toString());
+      sessionStorage.setItem('ghostchat_pwa_dismissed', 'true');
     } catch {}
   };
 
@@ -172,19 +183,15 @@ export default function InstallPrompt() {
         }
       } catch (err) {
         console.warn('Install prompt error:', err);
+        setShowIOSGuide((prev) => !prev);
       }
-    } else if (platform.isIOS) {
-      // iOS: Toggle visual guide
-      setShowIOSGuide((prev) => !prev);
     } else {
-      // Fallback for browsers that don't support beforeinstallprompt
+      // iOS or browsers without native prompt: show step-by-step visual guide
       setShowIOSGuide((prev) => !prev);
     }
   };
 
   if (!show || isInstalled) return null;
-
-  const isIOSManual = platform.isIOS && !deferredPrompt;
 
   return (
     <AnimatePresence>
@@ -212,7 +219,7 @@ export default function InstallPrompt() {
                 Install GhostChat App
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {isIOSManual
+                {platform.isIOS
                   ? 'Add to Home Screen for full-screen offline chat.'
                   : 'Fast launch, offline capability & native app experience.'}
               </p>
@@ -225,15 +232,20 @@ export default function InstallPrompt() {
                 onClick={handleInstall}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-semibold rounded-xl shadow-md active:scale-95 transition-all"
               >
-                {isIOSManual ? (
+                {deferredPrompt ? (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    Install
+                  </>
+                ) : platform.isIOS ? (
                   <>
                     <Share className="w-3.5 h-3.5" />
-                    How to
+                    Install
                   </>
                 ) : (
                   <>
                     <Download className="w-3.5 h-3.5" />
-                    Install
+                    How to
                   </>
                 )}
               </button>
@@ -248,7 +260,7 @@ export default function InstallPrompt() {
             </div>
           </div>
 
-          {/* ── iOS Step-by-Step Guide ── */}
+          {/* ── Step-by-Step Guide ── */}
           <AnimatePresence>
             {showIOSGuide && (
               <motion.div
@@ -257,60 +269,95 @@ export default function InstallPrompt() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800"
               >
-                <div className="px-4 py-3.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Add to Home Screen (Safari)
-                    </p>
-                    <span className="text-[10px] text-indigo-500 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full">
-                      iOS Safari Guide
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {/* Step 1 */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-bold text-xs">1</span>
-                      </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
-                        Tap the{' '}
-                        <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold px-1 py-0.5 bg-indigo-500/10 rounded">
-                          <Share className="w-3 h-3" /> Share
-                        </span>{' '}
-                        button at the bottom of Safari.
+                {platform.isIOS ? (
+                  /* iOS Safari Guide */
+                  <div className="px-4 py-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Add to Home Screen (Safari)
                       </p>
+                      <span className="text-[10px] text-indigo-500 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                        iOS Safari Guide
+                      </span>
                     </div>
 
-                    {/* Step 2 */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-purple-600 dark:text-purple-400 font-bold text-xs">2</span>
+                    <div className="space-y-2.5">
+                      {/* Step 1 */}
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-indigo-600 dark:text-indigo-400 font-bold text-xs">1</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
+                          Tap the{' '}
+                          <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold px-1 py-0.5 bg-indigo-500/10 rounded">
+                            <Share className="w-3 h-3" /> Share
+                          </span>{' '}
+                          button at the bottom of Safari.
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
-                        Scroll down and tap{' '}
-                        <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold px-1 py-0.5 bg-purple-500/10 rounded">
-                          <Plus className="w-3 h-3" /> Add to Home Screen
-                        </span>.
-                      </p>
+
+                      {/* Step 2 */}
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-purple-600 dark:text-purple-400 font-bold text-xs">2</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
+                          Scroll down and tap{' '}
+                          <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold px-1 py-0.5 bg-purple-500/10 rounded">
+                            <Plus className="w-3 h-3" /> Add to Home Screen
+                          </span>.
+                        </p>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">3</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
+                          Tap <strong className="text-slate-900 dark:text-white font-bold">Add</strong> in the top-right corner to finish.
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Step 3 */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">3</span>
-                      </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
-                        Tap <strong className="text-slate-900 dark:text-white font-bold">Add</strong> in the top-right corner to finish.
-                      </p>
+                    <div className="flex items-center justify-center pt-1 text-slate-400 dark:text-slate-500 text-[11px] gap-1">
+                      <ChevronUp className="w-3 h-3 animate-bounce" />
+                      Share icon is in Safari&apos;s navigation bar
                     </div>
                   </div>
+                ) : (
+                  /* Chrome / Android / Desktop Guide */
+                  <div className="px-4 py-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Browser Installation Guide
+                      </p>
+                      <span className="text-[10px] text-indigo-500 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                        Chrome / Edge
+                      </span>
+                    </div>
 
-                  <div className="flex items-center justify-center pt-1 text-slate-400 dark:text-slate-500 text-[11px] gap-1">
-                    <ChevronUp className="w-3 h-3 animate-bounce" />
-                    Share icon is in Safari&apos;s navigation bar
+                    <div className="space-y-2.5">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-indigo-600 dark:text-indigo-400 font-bold text-xs">1</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
+                          Look for the <strong className="text-slate-900 dark:text-white font-semibold">Install</strong> icon in your browser URL bar or tap the menu <strong className="text-slate-900 dark:text-white font-semibold">(⋮)</strong>.
+                        </p>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-purple-600 dark:text-purple-400 font-bold text-xs">2</span>
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed flex-1">
+                          Select <strong className="text-slate-900 dark:text-white font-semibold">&quot;Install GhostChat&quot;</strong> or <strong className="text-slate-900 dark:text-white font-semibold">&quot;Add to Home screen&quot;</strong>.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
