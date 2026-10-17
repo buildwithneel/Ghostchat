@@ -21,9 +21,19 @@ export default function SmartTopBar({
   const [copied, setCopied] = useState(false);
 
   const copyRoomLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const inviteUrl = `${window.location.origin}/room/${roomId}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const userColor = getUserColor(username);
@@ -41,7 +51,7 @@ export default function SmartTopBar({
               {roomName && roomName !== `Room ${roomId}` ? roomName : 'Ghost Room'}
             </span>
             {hasPassword && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold bg-amber-500/10 px-1.5 py-0.2 rounded">
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-500 font-semibold bg-amber-500/10 px-1.5 py-0.2 rounded" title="Password Protected">
                 <Lock className="w-2.5 h-2.5" />
               </span>
             )}
@@ -55,13 +65,15 @@ export default function SmartTopBar({
               onClick={copyRoomLink} 
               className="p-1 sm:p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700/80 rounded-lg text-slate-600 dark:text-slate-300 transition-all active:scale-95 shrink-0" 
               title="Copy Room Link"
+              aria-label="Copy Room Link"
             >
               {copied ? <span className="text-[10px] text-emerald-500 font-bold px-1">Copied!</span> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
             <button 
               onClick={onShowQr} 
-              className="p-1 sm:p-1.5 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/20 transition-all active:scale-95 hidden sm:block shrink-0"
-              title="Show QR Code"
+              className="p-1 sm:p-1.5 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/20 transition-all active:scale-95 shrink-0 flex items-center justify-center"
+              title="Room QR Code & Share"
+              aria-label="Room QR Code & Share"
             >
               <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>

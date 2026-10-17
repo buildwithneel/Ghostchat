@@ -73,18 +73,35 @@ export default function InputBar({
 
   const handleSend = (e) => {
     if (e) e.preventDefault();
-    if (message.trim()) {
-      onSendMessage(message, replyingTo);
+    const textToSend = message.trim();
+    if (textToSend) {
+      onSendMessage(textToSend, replyingTo);
       setMessage('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
       if (onCancelReply) onCancelReply();
       if (onTyping) onTyping(false);
       clearTimeout(typingTimeoutRef.current);
       setShowEmoji(false);
+
+      // Keep virtual keyboard open on mobile and desktop
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus({ preventScroll: true });
+        }
+      });
     }
   };
 
   const handleTextChange = (e) => {
     setMessage(e.target.value);
+
+    // Auto-adjust textarea height up to 120px
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+    }
     
     if (onTyping) {
       onTyping(true);
@@ -97,6 +114,9 @@ export default function InputBar({
 
   const onEmojiClick = (emojiData) => {
     setMessage(prev => prev + emojiData.emoji);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    });
   };
 
   useEffect(() => {
@@ -222,8 +242,15 @@ export default function InputBar({
 
           <button 
             type="submit" 
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => {
+              if (message.trim()) {
+                e.preventDefault();
+              }
+            }}
             disabled={!message.trim()}
-            className="p-2.5 sm:p-3.5 bg-gradient-to-tr from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] shrink-0 active:scale-95 flex items-center justify-center"
+            className="p-2.5 sm:p-3.5 bg-gradient-to-tr from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] shrink-0 active:scale-95 flex items-center justify-center cursor-pointer"
+            title="Send Message"
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5 translate-x-0.5 -translate-y-0.5" />
           </button>

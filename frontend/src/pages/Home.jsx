@@ -16,6 +16,15 @@ export default function Home() {
 
   useEffect(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const joinParam = params.get('join') || params.get('room');
+      if (joinParam && joinParam.trim()) {
+        navigate(`/room/${joinParam.trim().toUpperCase()}`, { replace: true });
+        return;
+      }
+    } catch {}
+
+    try {
       const saved = JSON.parse(localStorage.getItem('ghostchat_recent_rooms') || '[]');
       if (Array.isArray(saved)) {
         setRecentRooms(saved);
@@ -23,7 +32,7 @@ export default function Home() {
     } catch {
       setRecentRooms([]);
     }
-  }, []);
+  }, [navigate]);
 
   const handleCreateRoomSubmit = ({ roomName, roomId: customId, password }) => {
     const targetId = customId || 'new';

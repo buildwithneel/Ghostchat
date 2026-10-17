@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Moon, Sun, Volume2, VolumeX, LogOut, Trash2, Edit3 } from 'lucide-react';
+import { X, Moon, Sun, Volume2, VolumeX, LogOut, Trash2, Edit3, QrCode } from 'lucide-react';
 import { getUserColor, getInitials } from '../utils/colors';
 
 export default function SettingsPanel({
@@ -7,6 +7,7 @@ export default function SettingsPanel({
   onClose,
   username,
   onEditName,
+  onShowQr,
   isDarkTheme,
   toggleTheme,
   soundEnabled,
@@ -99,6 +100,24 @@ export default function SettingsPanel({
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>
                 </div>
+
+                {onShowQr && (
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); onShowQr(); }}
+                    className="w-full flex items-center justify-between p-3.5 bg-slate-100 dark:bg-slate-800/40 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/50 transition-colors text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-slate-800 dark:text-slate-200 font-medium block text-sm">Room QR & Invite</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Share room code and link</span>
+                      </div>
+                    </div>
+                  </button>
+                )}
               </div>
 
               {/* Danger Zone */}

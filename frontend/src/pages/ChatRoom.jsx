@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
-import { ChevronDown, Search, X, Pin, Check } from 'lucide-react';
+import { ChevronDown, Search, X, Pin, Check, Copy, Share2, Lock, QrCode } from 'lucide-react';
 
 import MessageBubble from '../components/MessageBubble';
 import InputBar from '../components/InputBar';
@@ -66,11 +66,20 @@ export default function ChatRoom() {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(null);
+  const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [qrCopied, setQrCopied] = useState(false);
 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const sentMessageIdsRef = useRef(new Set());
+  const playedSoundIdsRef = useRef(new Set());
+  const currentUsernameRef = useRef(username);
+
+  useEffect(() => {
+    currentUsernameRef.current = username;
+  }, [username]);
 
   const triggerConfetti = () => {
     confetti({
@@ -124,6 +133,8 @@ export default function ChatRoom() {
           navigate(`/room/${response.roomId}`, { replace: true, state: {} });
         }
       } else if (response?.requiresPassword) {
+        if (response.roomName) setRoomName(response.roomName);
+        setHasPassword(true);
         setPasswordModalOpen(true);
         if (passwordToTry) {
           setPasswordError(response.error || 'Incorrect password. Please try again.');
@@ -166,6 +177,7 @@ export default function ChatRoom() {
       if (window.visualViewport) {
         const vv = window.visualViewport;
         setViewportHeight(vv.height);
+        setViewportOffsetTop(vv.offsetTop || 0);
 
         // Keyboard is active if visual viewport height dropped significantly below screen height
         const keyboardActive = vv.height < (window.innerHeight - 80);
@@ -177,10 +189,12 @@ export default function ChatRoom() {
         }
 
         if (keyboardActive) {
-          // Scroll to the latest message so user sees context above keyboard
-          setTimeout(() => {
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }, 80);
+          // Scroll immediately to the latest message so user sees context above keyboard
+          requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+            }
+          });
         }
       }
     };
@@ -202,8 +216,15 @@ export default function ChatRoom() {
   }, []);
 
   const handleInputFocus = () => {
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
+    });
     setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
     }, 120);
   };
 
@@ -220,11 +241,22 @@ export default function ChatRoom() {
     };
 
     const handleReceiveMsg = (data) => {
-      setMessages((prev) => [...prev, data]);
+      setMessages((prev) => {
+        if (data.id && prev.some(m => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
       
-      const isMsgOwn = data.username === username;
+      const isMsgOwn = (data.id && sentMessageIdsRef.current.has(data.id)) ||
+                       (data.username && currentUsernameRef.current && data.username === currentUsernameRef.current);
       
-      if (!isMsgOwn) soundEngine.playReceive();
+      // Play sound only if not own message, sound is enabled, and not a duplicate sound for this message ID
+      if (!isMsgOwn && soundEnabled) {
+        const canPlay = !data.id || !playedSoundIdsRef.current.has(data.id);
+        if (canPlay) {
+          if (data.id) playedSoundIdsRef.current.add(data.id);
+          soundEngine.playReceive();
+        }
+      }
       
       if (data.message && data.message.toLowerCase().includes('party')) {
         triggerConfetti();
@@ -232,12 +264,16 @@ export default function ChatRoom() {
 
       setTimeout(() => {
         if (isAtBottom() || isMsgOwn) {
-          bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          } else {
+            bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+          }
         } else {
           setUnreadCount(prev => prev + 1);
           setShowScrollBottom(true);
         }
-      }, 100);
+      }, 50);
     };
 
     const handleSystemMsg = (data) => {
@@ -306,12 +342,15 @@ export default function ChatRoom() {
   }, [roomId, navigate, username, soundEnabled]);
 
   const sendMessage = (text, replyTarget = null) => {
+    const msgId = Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    sentMessageIdsRef.current.add(msgId);
+
     socket.emit('send_message', { 
        roomId, 
        message: text, 
        username, 
        type: 'text',
-       id: Math.random().toString(36).substring(7),
+       id: msgId,
        replyTo: replyTarget ? {
          id: replyTarget.id,
          username: replyTarget.username,
@@ -321,6 +360,12 @@ export default function ChatRoom() {
     soundEngine.playSend();
     if (text.toLowerCase().includes('party')) triggerConfetti();
     setReplyingTo(null);
+
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
+    });
   };
 
   const handleFileUpload = async ({ file, password, expiryMins, viewOnce }) => {
@@ -421,9 +466,10 @@ export default function ChatRoom() {
     <div 
       style={{ 
         height: viewportHeight ? `${viewportHeight}px` : '100%',
-        maxHeight: viewportHeight ? `${viewportHeight}px` : '100dvh'
+        maxHeight: viewportHeight ? `${viewportHeight}px` : '100dvh',
+        top: viewportOffsetTop ? `${viewportOffsetTop}px` : 0
       }}
-      className="w-full overflow-hidden flex flex-col font-sans transition-[height] duration-150 bg-slate-100 dark:bg-[#080b12] fixed inset-0 md:relative"
+      className="w-full overflow-hidden flex flex-col font-sans bg-slate-100 dark:bg-[#080b12] fixed inset-0 md:relative"
     >
       
       {/* Background Decor */}
@@ -597,6 +643,7 @@ export default function ChatRoom() {
         onClose={() => setShowSettings(false)}
         username={username}
         onEditName={() => setShowNameModal(true)}
+        onShowQr={() => setShowQr(true)}
         isDarkTheme={isDarkTheme}
         toggleTheme={toggleTheme}
         soundEnabled={soundEnabled}
@@ -643,26 +690,126 @@ export default function ChatRoom() {
         onSubmit={(pwd) => attemptJoin(pwd)}
       />
 
-      {/* QR Code Modal */}
+      {/* QR Code & Invite Share Modal */}
       <AnimatePresence>
         {showQr && (
-           <motion.div 
-             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" onClick={() => setShowQr(false)}
+           <div 
+             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4" 
+             onClick={() => setShowQr(false)}
            >
              <motion.div 
-               initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-               className="glass-panel p-8 rounded-3xl text-center shadow-2xl border border-slate-700/50 bg-white/95 dark:bg-slate-900/95" 
+               initial={{ opacity: 0, scale: 0.92, y: 10 }} 
+               animate={{ opacity: 1, scale: 1, y: 0 }} 
+               exit={{ opacity: 0, scale: 0.92, y: 10 }}
+               className="w-full max-w-sm rounded-3xl p-6 sm:p-7 text-center shadow-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 relative" 
                onClick={e => e.stopPropagation()}
              >
-               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Scan to Join</h3>
-               <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">{roomName || roomId}</p>
-               <div className="bg-white p-4 rounded-2xl mx-auto inline-block mb-6 shadow-[0_0_40px_rgba(99,102,241,0.4)]">
-                 <QRCodeSVG value={window.location.href} size={200} />
+               {/* Close button */}
+               <button
+                 type="button"
+                 onClick={() => setShowQr(false)}
+                 className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                 title="Close"
+               >
+                 <X className="w-5 h-5" />
+               </button>
+
+               {/* Header */}
+               <div className="flex flex-col items-center gap-1 mb-4">
+                 <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-1 shadow-inner">
+                   <QrCode className="w-6 h-6" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">Room Invitation</h3>
+                 <p className="text-xs text-slate-500 dark:text-slate-400">
+                   {roomName && roomName !== `Room ${roomId}` ? roomName : `Room ${roomId}`}
+                 </p>
+                 {hasPassword && (
+                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-500 bg-amber-500/10 px-2.5 py-0.5 rounded-full mt-1 border border-amber-500/20">
+                     <Lock className="w-3 h-3" /> Password Protected
+                   </span>
+                 )}
                </div>
-               <p className="text-slate-700 dark:text-slate-300 font-mono tracking-widest text-xl bg-slate-100 dark:bg-slate-800/80 py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700/50">{roomId}</p>
+
+               {/* QR Code Container */}
+               <div className="bg-white p-4 sm:p-5 rounded-2xl mx-auto inline-block mb-4 shadow-md border border-slate-200 dark:border-slate-700/60">
+                 <QRCodeSVG 
+                   value={`${window.location.origin}/room/${roomId}`} 
+                   size={180} 
+                   level="M"
+                 />
+               </div>
+
+               {/* Room Code Display */}
+               <div className="mb-4">
+                 <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider block mb-1">Room Code</span>
+                 <p className="text-slate-800 dark:text-slate-100 font-mono tracking-widest text-lg font-bold bg-slate-100 dark:bg-slate-800/80 py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                   {roomId}
+                 </p>
+               </div>
+
+               {/* Share and Copy Buttons */}
+               <div className="flex flex-col gap-2.5">
+                 <button
+                   type="button"
+                   onClick={() => {
+                     const inviteUrl = `${window.location.origin}/room/${roomId}`;
+                     if (navigator.clipboard && navigator.clipboard.writeText) {
+                       navigator.clipboard.writeText(inviteUrl).then(() => {
+                         setQrCopied(true);
+                         setTimeout(() => setQrCopied(false), 2000);
+                       });
+                     } else {
+                       setQrCopied(true);
+                       setTimeout(() => setQrCopied(false), 2000);
+                     }
+                   }}
+                   className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700/60 transition-colors flex items-center justify-center gap-2 active:scale-95"
+                 >
+                   {qrCopied ? (
+                     <>
+                       <Check className="w-4 h-4 text-emerald-500" />
+                       <span className="text-emerald-500">Invite Link Copied!</span>
+                     </>
+                   ) : (
+                     <>
+                       <Copy className="w-4 h-4 text-indigo-500" />
+                       <span>Copy Invite Link</span>
+                     </>
+                   )}
+                 </button>
+
+                 <button
+                   type="button"
+                   onClick={async () => {
+                     const inviteUrl = `${window.location.origin}/room/${roomId}`;
+                     if (navigator.share) {
+                       try {
+                         await navigator.share({
+                           title: `Join ${roomName || roomId} on GhostChat`,
+                           text: `Join ${roomName || `Room ${roomId}`} on GhostChat!${hasPassword ? ' (Password protected)' : ''}`,
+                           url: inviteUrl
+                         });
+                       } catch (err) {
+                         if (err.name !== 'AbortError') {
+                           navigator.clipboard?.writeText(inviteUrl);
+                           setQrCopied(true);
+                           setTimeout(() => setQrCopied(false), 2000);
+                         }
+                       }
+                     } else {
+                       navigator.clipboard?.writeText(inviteUrl);
+                       setQrCopied(true);
+                       setTimeout(() => setQrCopied(false), 2000);
+                     }
+                   }}
+                   className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                 >
+                   <Share2 className="w-4 h-4" />
+                   <span>Share Room Invitation</span>
+                 </button>
+               </div>
              </motion.div>
-           </motion.div>
+           </div>
         )}
       </AnimatePresence>
 
