@@ -19,7 +19,34 @@ const storage = multer.diskStorage({
     cb(null, `${uuidv4()}${ext}`);
   }
 });
-const upload = multer({ 
+const DISALLOWED_EXTENSIONS = new Set([
+  '.html', '.htm', '.xhtml', '.svg', '.js', '.mjs', '.cjs',
+  '.php', '.exe', '.bat', '.cmd', '.sh', '.vbs', '.scr', '.dll'
+]);
+
+const DISALLOWED_MIMETYPES = new Set([
+  'text/html',
+  'image/svg+xml',
+  'application/javascript',
+  'text/javascript',
+  'application/x-javascript',
+  'application/x-executable',
+  'application/x-msdownload',
+  'application/x-sh',
+  'application/x-php'
+]);
+
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  if (DISALLOWED_EXTENSIONS.has(ext) || DISALLOWED_MIMETYPES.has(mime)) {
+    return cb(new Error('File type not allowed for security reasons.'));
+  }
+  cb(null, true);
+};
+
+const upload = multer({
+  fileFilter, 
   storage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 }).single('file');
@@ -35,8 +62,10 @@ const uploadFile = async (req, res) => {
 
     const { roomId, username, expiryMins, password, viewOnce } = req.body;
     
-    // Default 1 hour expiry
-    const msExpiry = (parseInt(expiryMins) || 60) * 60 * 1000;
+    // Default 1 hour expiry; parse minutes safely without lossy integer truncation
+    const parsedMins = parseFloat(expiryMins);
+    const validMins = (!isNaN(parsedMins) && parsedMins > 0) ? parsedMins : 60;
+    const msExpiry = Math.round(validMins * 60 * 1000);
     const expiresAt = Date.now() + msExpiry;
     
     let passwordHash = null;
@@ -57,7 +86,8 @@ const uploadFile = async (req, res) => {
       expiresAt,
       viewOnce: viewOnce === 'true',
       passwordHash,
-      downloads: 0
+      downloads: 0,
+      downloadTokens: new Map()
     });
 
     res.json({
@@ -117,6 +147,10 @@ const downloadFileHandler = async (req, res) => {
 
   // Generate a short-lived download token
   const downloadToken = uuidv4();
+  if (!fileData.downloadTokens) {
+    fileData.downloadTokens = new Map();
+  }
+  fileData.downloadTokens.set(downloadToken, Date.now() + 5 * 60 * 1000);
   fileData.downloadToken = downloadToken;
   fileData.tokenExpires = Date.now() + 5 * 60 * 1000; // 5 min
   
@@ -136,7 +170,8 @@ const serveFile = (req, res) => {
      if (Date.now() > fileData.expiresAt) return res.status(404).send('Expired');
   } else {
      // token required
-     if (!token || fileData.downloadToken !== token || Date.now() > fileData.tokenExpires) {
+     const tokenExpires = fileData.downloadTokens?.get(token) || (fileData.downloadToken === token ? fileData.tokenExpires : null);
+     if (!token || !tokenExpires || Date.now() > tokenExpires) {
          return res.status(401).send('Unauthorized or token expired');
      }
   }
@@ -152,6 +187,8 @@ const serveFile = (req, res) => {
      io.to(fileData.roomId).emit('file_downloaded', { fileId, downloads: fileData.downloads });
   }
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
   res.sendFile(filePath, (err) => {
     if (isViewOnce && !err) {
       setTimeout(() => deleteFileInternal(fileId), 100);
@@ -175,5 +212,6 @@ module.exports = {
   serveFile,
   downloadFileHandler,
   filesDB,
+  fileFilter,
   deleteFileInternal
 };
