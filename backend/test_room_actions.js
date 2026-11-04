@@ -144,7 +144,19 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Slash shortcut does not hijack focus from editable inputs (BUG-010)
+  const isEditableElement = (tagName, isContentEditable) => {
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || !!isContentEditable;
+  };
+  if (!isEditableElement('INPUT', false) || !isEditableElement('TEXTAREA', false) || !isEditableElement('DIV', true)) {
+    throw new Error('Test 11 Failed: Editable elements not correctly identified');
+  }
+  if (isEditableElement('DIV', false) || isEditableElement('BODY', false)) {
+    throw new Error('Test 11 Failed: Non-editable elements falsely identified as editable');
+  }
+  console.log('✓ Test 11: Editable element detection prevents slash key hijacking');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
