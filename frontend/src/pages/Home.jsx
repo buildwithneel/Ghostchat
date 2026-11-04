@@ -19,6 +19,9 @@ export default function Home() {
     try {
       const params = new URLSearchParams(window.location.search);
       const joinParam = params.get('join') || params.get('room');
+      if (params.get('action') === 'new-room') {
+        setShowCreateModal(true);
+      }
       if (joinParam && joinParam.trim()) {
         navigate(`/room/${joinParam.trim().toUpperCase()}`, { replace: true });
         return;

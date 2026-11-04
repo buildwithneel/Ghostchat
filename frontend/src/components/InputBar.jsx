@@ -37,7 +37,9 @@ export default function InputBar({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === '/' && document.activeElement !== inputRef.current) {
+      const activeTag = document.activeElement?.tagName;
+      const isEditable = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+      if (e.key === '/' && document.activeElement !== inputRef.current && !isEditable) {
         e.preventDefault();
         inputRef.current?.focus();
       }
