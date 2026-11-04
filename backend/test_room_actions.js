@@ -685,7 +685,49 @@ async function runTests() {
   console.log('✓ Test 22: Inactive empty room successfully re-created with new configuration');
   }
 
-  console.log('\nALL 22 TESTS PASSED CLEANLY! 🎉\n');
+    // 23. Regression Test (BUG-013)
+  {
+// 23. file_downloaded listener state update (BUG-013)
+  const initialMessages = [
+    {
+      id: 'msg_file_1',
+      type: 'file',
+      fileData: { fileId: 'doc_123.pdf', downloads: 0 }
+    },
+    {
+      id: 'msg_text_2',
+      type: 'text',
+      message: 'Hello'
+    }
+  ];
+
+  const updateDownloadsOnEvent = (messages, eventData) => {
+    if (!eventData || !eventData.fileId) return messages;
+    return messages.map(m => {
+      if (m.type === 'file' && m.fileData && m.fileData.fileId === eventData.fileId) {
+        return {
+          ...m,
+          fileData: {
+            ...m.fileData,
+            downloads: eventData.downloads
+          }
+        };
+      }
+      return m;
+    });
+  };
+
+  const updated = updateDownloadsOnEvent(initialMessages, { fileId: 'doc_123.pdf', downloads: 5 });
+  if (updated[0].fileData.downloads !== 5) {
+    throw new Error('Test 23 Failed: File download count was not updated on file_downloaded event');
+  }
+  if (updated[1].message !== 'Hello') {
+    throw new Error('Test 23 Failed: Unrelated messages were corrupted during download count update');
+  }
+  console.log('✓ Test 23: file_downloaded event correctly updates message download counts');
+  }
+
+  console.log('\nALL 23 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {

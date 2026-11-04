@@ -340,6 +340,23 @@ export default function ChatRoom() {
       }));
     };
 
+    const handleFileDownloaded = (data) => {
+      if (!data || !data.fileId) return;
+      setMessages(prev => prev.map(m => {
+        if (m.type === 'file' && m.fileData && m.fileData.fileId === data.fileId) {
+          return {
+            ...m,
+            fileData: {
+              ...m.fileData,
+              downloads: data.downloads
+            }
+          };
+        }
+        return m;
+      }));
+    };
+
+    socket.on('file_downloaded', handleFileDownloaded);
     socket.on('receive_message', handleReceiveMsg);
     socket.on('system_message', handleSystemMsg);
     socket.on('user_joined', handleUserJoined);
@@ -361,6 +378,7 @@ export default function ChatRoom() {
       socket.off('message_pinned', handlePin);
       socket.off('reaction_updated', handleReaction);
       socket.off('reaction_added', handleReaction);
+      socket.off('file_downloaded', handleFileDownloaded);
       socket.off('admin_promoted', handleAdminPromoted);
     };
   }, [roomId, navigate, username, soundEnabled]);
