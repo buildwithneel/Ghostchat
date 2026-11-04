@@ -6,7 +6,7 @@ export default function FileUploadModal({ isOpen, onClose, onUpload, initialFile
   const [selectedFile, setSelectedFile] = useState(initialFile);
   const [password, setPassword] = useState('');
   const [viewOnce, setViewOnce] = useState(false);
-  const [expiryHours, setExpiryHours] = useState('1'); // Expiry in hours
+  const [expiryMinutes, setExpiryMinutes] = useState('60'); // Expiry in minutes
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function FileUploadModal({ isOpen, onClose, onUpload, initialFile
       file: selectedFile,
       password: password.trim(),
       viewOnce,
-      expiryMins: (parseFloat(expiryHours) * 60).toString()
+      expiryMins: expiryMinutes.toString()
     });
   };
 
@@ -97,14 +97,14 @@ export default function FileUploadModal({ isOpen, onClose, onUpload, initialFile
             <div className="flex items-center gap-3 w-full bg-slate-800/30 rounded-xl p-3 border border-slate-700">
               <Clock className="w-5 h-5 text-slate-400" />
               <select 
-                value={expiryHours} 
-                onChange={e => setExpiryHours(e.target.value)}
+                value={expiryMinutes} 
+                onChange={e => setExpiryMinutes(e.target.value)}
                 className="bg-transparent border-none text-white focus:outline-none w-full appearance-none"
               >
-                <option value="0.016">1 Minute</option>
-                <option value="0.083">5 Minutes</option>
-                <option value="1">1 Hour</option>
-                <option value="24">24 Hours</option>
+                <option value="1">1 Minute</option>
+                <option value="5">5 Minutes</option>
+                <option value="60">1 Hour</option>
+                <option value="1440">24 Hours</option>
               </select>
             </div>
 
