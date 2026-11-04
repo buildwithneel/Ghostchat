@@ -473,7 +473,19 @@ async function runTests() {
   }
   console.log('✓ Test 16 (BUG-006): Admin privilege transfer emitted admin_promoted and updated room state');
 
-  console.log('\nALL 16 TESTS PASSED CLEANLY! 🎉\n');
+    // 17. Socket reconnection room restoration (BUG-007)
+  const user1Join = await createOrJoinRoom('ROOM_RECONNECT', 'socket_old_conn', { roomName: 'Reconnect Room', password: 'pwd123' });
+  if (!user1Join.success) {
+    throw new Error('Test 17 Failed: Initial join failed');
+  }
+  leaveRoom('ROOM_RECONNECT', 'socket_old_conn');
+  const user1Rejoin = await createOrJoinRoom('ROOM_RECONNECT', 'socket_new_conn', { password: 'pwd123' });
+  if (!user1Rejoin.success || !user1Rejoin.users.some(u => u.id === 'socket_new_conn')) {
+    throw new Error('Test 17 Failed: Rejoin after reconnect failed');
+  }
+  console.log('✓ Test 17 (BUG-007): Socket reconnection restores room membership cleanly');
+
+  console.log('\nALL 17 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
