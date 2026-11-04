@@ -35,8 +35,10 @@ const uploadFile = async (req, res) => {
 
     const { roomId, username, expiryMins, password, viewOnce } = req.body;
     
-    // Default 1 hour expiry
-    const msExpiry = (parseInt(expiryMins) || 60) * 60 * 1000;
+    // Default 1 hour expiry; parse minutes safely without lossy integer truncation
+    const parsedMins = parseFloat(expiryMins);
+    const validMins = (!isNaN(parsedMins) && parsedMins > 0) ? parsedMins : 60;
+    const msExpiry = Math.round(validMins * 60 * 1000);
     const expiresAt = Date.now() + msExpiry;
     
     let passwordHash = null;

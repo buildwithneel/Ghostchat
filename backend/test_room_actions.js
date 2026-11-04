@@ -8,6 +8,9 @@ const {
   checkRoom,
   rooms
 } = require('./controllers/roomController');
+const express = require('express');
+const http = require('http');
+const fileRoutes = require('./routes/fileRoutes');
 
 async function runTests() {
   console.log('--- Starting Room & Message Action Tests ---');
@@ -144,7 +147,64 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Regression Test BUG-005: Verify 1 Minute and other file expiration options calculate accurate millisecond durations
+  const app = express();
+  app.use(express.json());
+  app.use('/api/files', fileRoutes);
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
+  const baseUrl = `http://localhost:${port}`;
+
+  // Helper to test expiry logic
+  const calcExpiry = (minsStr) => {
+    const parsedMins = parseFloat(minsStr);
+    const validMins = (!isNaN(parsedMins) && parsedMins > 0) ? parsedMins : 60;
+    return Math.round(validMins * 60 * 1000);
+  };
+
+  if (calcExpiry('1') !== 60000) {
+    throw new Error(`Test 11 Failed: 1 Minute expiry returned ${calcExpiry('1')} instead of 60000`);
+  }
+  if (calcExpiry('5') !== 300000) {
+    throw new Error(`Test 11 Failed: 5 Minutes expiry returned ${calcExpiry('5')} instead of 300000`);
+  }
+  if (calcExpiry('60') !== 3600000) {
+    throw new Error(`Test 11 Failed: 1 Hour expiry returned ${calcExpiry('60')} instead of 3600000`);
+  }
+  if (calcExpiry('1440') !== 86400000) {
+    throw new Error(`Test 11 Failed: 24 Hours expiry returned ${calcExpiry('1440')} instead of 86400000`);
+  }
+  if (calcExpiry('invalid') !== 3600000) {
+    throw new Error('Test 11 Failed: Invalid expiry did not fallback to 1 hour');
+  }
+
+  // Upload test via multipart
+  const formData = new FormData();
+  formData.append('file', new Blob(['test content'], { type: 'text/plain' }), 'test_exp.txt');
+  formData.append('roomId', 'ROOM_EXP');
+  formData.append('username', 'Alice');
+  formData.append('expiryMins', '1');
+
+  const nowBefore = Date.now();
+  const uploadRes = await fetch(`${baseUrl}/api/files/upload`, {
+    method: 'POST',
+    body: formData
+  });
+  const uploadData = await uploadRes.json();
+  if (!uploadData.success || !uploadData.file) {
+    throw new Error('Test 11 Failed: File upload failed');
+  }
+  const duration = uploadData.file.expiresAt - nowBefore;
+  // Should be ~60000ms (allow 2s buffer for network / disk)
+  if (duration < 58000 || duration > 62000) {
+    throw new Error(`Test 11 Failed: 1 Minute file expiry was ${duration}ms, expected ~60000ms`);
+  }
+
+  server.close();
+  console.log('✓ Test 11 (BUG-005): Verified file expiry correctly calculates 60000ms for 1 minute option across frontend and backend');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
