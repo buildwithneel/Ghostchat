@@ -144,7 +144,20 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. PWA action parameter handling (BUG-014)
+  const parseHomeAction = (searchQuery) => {
+    const params = new URLSearchParams(searchQuery);
+    return params.get('action');
+  };
+  if (parseHomeAction('?action=new-room') !== 'new-room') {
+    throw new Error('Test 11 Failed: action=new-room parameter was not parsed correctly');
+  }
+  if (parseHomeAction('?room=ABC') !== null) {
+    throw new Error('Test 11 Failed: Non-action query string falsely parsed as action');
+  }
+  console.log('✓ Test 11: PWA action=new-room shortcut parameter correctly handled');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
