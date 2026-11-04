@@ -46,7 +46,24 @@ function initSocket(io) {
 
       // If user was previously in another room on this socket, leave it
       if (socket.roomId && socket.roomId !== result.roomId) {
-        socket.leave(socket.roomId);
+        const prevRoomId = socket.roomId;
+        const leaveResult = leaveRoom(prevRoomId, socket.id);
+        socket.leave(prevRoomId);
+
+        if (leaveResult && !leaveResult.deleted) {
+          socket.to(prevRoomId).emit('user_left', {
+            message: `${leaveResult.username} left the chat.`,
+            usersCount: leaveResult.usersCount,
+            users: getRoomUsers(prevRoomId)
+          });
+
+          if (leaveResult.newAdminId) {
+            socket.to(prevRoomId).emit('system_message', {
+              message: `Admin privileges transferred to another user.`,
+              users: getRoomUsers(prevRoomId)
+            });
+          }
+        }
       }
 
       socket.join(result.roomId);

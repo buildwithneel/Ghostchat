@@ -8,6 +8,8 @@ const {
   checkRoom,
   rooms
 } = require('./controllers/roomController');
+const { EventEmitter } = require('events');
+const { initSocket } = require('./socket/chatHandler');
 
 async function runTests() {
   console.log('--- Starting Room & Message Action Tests ---');
@@ -144,7 +146,53 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Regression Test BUG-004: Room switching cleans up user from previous room
+  const mockIo = new EventEmitter();
+  mockIo.to = () => ({ emit: () => {} });
+  initSocket(mockIo);
+
+  const clientSocket = new EventEmitter();
+  clientSocket.id = 'switch_test_socket';
+  clientSocket.roomId = null;
+  clientSocket.join = (rid) => { clientSocket.roomId = rid; };
+  clientSocket.leave = (rid) => { if (clientSocket.roomId === rid) clientSocket.roomId = null; };
+  clientSocket.to = () => ({ emit: () => {} });
+
+  mockIo.emit('connection', clientSocket);
+
+  // Join Switch Room 1
+  await new Promise(res => clientSocket.emit('join_room', { roomId: 'SWITCH_R1' }, res));
+  if (rooms.get('SWITCH_R1').users.size !== 1) {
+    throw new Error('Test 11 Failed: Initial room join failed');
+  }
+
+  // Switch to Switch Room 2 on the same socket
+  await new Promise(res => clientSocket.emit('join_room', { roomId: 'SWITCH_R2' }, res));
+
+  // Verify SWITCH_R1 user count was cleanly decremented to 0
+  if (rooms.get('SWITCH_R1').users.size !== 0) {
+    throw new Error('Test 11 Failed: SWITCH_R1 user count was not decremented after switching to SWITCH_R2');
+  }
+  // Verify SWITCH_R2 user count is 1
+  if (rooms.get('SWITCH_R2').users.size !== 1) {
+    throw new Error('Test 11 Failed: SWITCH_R2 user count mismatch');
+  }
+
+  // Switch back to SWITCH_R1
+  await new Promise(res => clientSocket.emit('join_room', { roomId: 'SWITCH_R1' }, res));
+  if (rooms.get('SWITCH_R2').users.size !== 0 || rooms.get('SWITCH_R1').users.size !== 1) {
+    throw new Error('Test 11 Failed: Switching back to SWITCH_R1 did not clean up SWITCH_R2');
+  }
+
+  // Disconnect socket -> cleans up SWITCH_R1
+  clientSocket.emit('disconnect');
+  if (rooms.get('SWITCH_R1').users.size !== 0) {
+    throw new Error('Test 11 Failed: Disconnect did not clean up remaining room');
+  }
+
+  console.log('✓ Test 11 (BUG-004): Verified room switching cleans up user from prior room and maintains accurate counts');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
