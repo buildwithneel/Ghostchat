@@ -286,7 +286,13 @@ export default function ChatRoom() {
 
     const handleSystemMsg = (data) => {
       setMessages(prev => [...prev, { id: Date.now().toString(), type: 'system', message: data.message, timestamp: new Date().toISOString() }]);
-      if (data.users) setActiveUsers(data.users);
+      if (data.users) {
+        setActiveUsers(data.users);
+        const me = data.users.find(u => u.username === currentUsernameRef.current);
+        if (me && me.isAdmin !== undefined) {
+          setIsAdmin(me.isAdmin);
+        }
+      }
       
       setTimeout(() => {
         if (isAtBottom()) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -316,6 +322,12 @@ export default function ChatRoom() {
       setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, pinned: data.pinned !== undefined ? data.pinned : !m.pinned } : m));
     };
     
+    const handleAdminPromoted = (data) => {
+      if (data && data.isAdmin !== undefined) {
+        setIsAdmin(!!data.isAdmin);
+      }
+    };
+
     // Real-time reaction update
     const handleReaction = (data) => {
       setMessages(prev => prev.map(m => {
@@ -335,6 +347,7 @@ export default function ChatRoom() {
     socket.on('message_pinned', handlePin);
     socket.on('reaction_updated', handleReaction);
     socket.on('reaction_added', handleReaction);
+    socket.on('admin_promoted', handleAdminPromoted);
 
     return () => {
       socket.off('receive_message', handleReceiveMsg);
@@ -346,6 +359,7 @@ export default function ChatRoom() {
       socket.off('message_pinned', handlePin);
       socket.off('reaction_updated', handleReaction);
       socket.off('reaction_added', handleReaction);
+      socket.off('admin_promoted', handleAdminPromoted);
     };
   }, [roomId, navigate, username, soundEnabled]);
 
