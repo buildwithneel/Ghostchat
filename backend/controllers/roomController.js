@@ -18,7 +18,7 @@ const MAX_MESSAGES_PER_ROOM = 500;
  * Check room details without joining
  */
 const checkRoom = (roomId) => {
-  if (!roomId) return null;
+  if (!roomId || typeof roomId !== 'string') return null;
   const normalizedId = roomId.trim().toUpperCase();
   const room = rooms.get(normalizedId);
   if (!room) return { exists: false };
@@ -56,7 +56,7 @@ const createOrJoinRoom = async (roomId, socketId, options = {}) => {
     }
   }
 
-  if (!rooms.has(targetId)) {
+  if (!rooms.has(targetId) || (isExplicitCreate && rooms.get(targetId).users.size === 0)) {
     isNewRoom = true;
     let passwordHash = null;
     if (password && password.trim() !== '') {
@@ -300,7 +300,8 @@ const togglePinMessage = (roomId, messageId) => {
  * Forward message to target room
  */
 const forwardMessageToRoom = async ({ targetRoomId, message, username, targetPassword }) => {
-  if (!targetRoomId) return { success: false, error: 'Target room code required' };
+  if (!targetRoomId || typeof targetRoomId !== 'string') return { success: false, error: 'Target room code required' };
+  if (!message || typeof message !== 'object') return { success: false, error: 'Message data required' };
   const normalizedTarget = targetRoomId.trim().toUpperCase();
 
   if (!rooms.has(normalizedTarget)) {
