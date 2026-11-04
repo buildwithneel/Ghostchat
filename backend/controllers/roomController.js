@@ -56,7 +56,7 @@ const createOrJoinRoom = async (roomId, socketId, options = {}) => {
     }
   }
 
-  if (!rooms.has(targetId)) {
+  if (!rooms.has(targetId) || (isExplicitCreate && rooms.get(targetId).users.size === 0)) {
     isNewRoom = true;
     let passwordHash = null;
     if (password && password.trim() !== '') {
