@@ -650,7 +650,42 @@ async function runTests() {
   console.log('✓ Test 21: Message ownership preserved across user alias renames');
   }
 
-  console.log('\nALL 21 TESTS PASSED CLEANLY! 🎉\n');
+    // 22. Regression Test (BUG-012)
+  {
+// 22. Re-create inactive empty room with new password/settings (BUG-012)
+  const roomCreated = await createOrJoinRoom('RECREATE_ROOM', 'socket_old', { roomName: 'Old Room', password: 'oldpassword123' });
+  if (!roomCreated.success) throw new Error('Test 22 Failed: Initial room creation failed');
+  addMessageToRoom('RECREATE_ROOM', { username: 'OldUser', message: 'Old message' });
+
+  leaveRoom('RECREATE_ROOM', 'socket_old');
+  if (rooms.get('RECREATE_ROOM').users.size !== 0) {
+    throw new Error('Test 22 Failed: Room users not empty after leave');
+  }
+
+  const recreateResult = await createOrJoinRoom('RECREATE_ROOM', 'socket_new', {
+    isExplicitCreate: true,
+    roomName: 'New Recreated Room',
+    password: 'newpassword456'
+  });
+
+  if (!recreateResult.success) {
+    throw new Error(`Test 22 Failed: Recreating empty room failed: ${recreateResult.error}`);
+  }
+  if (recreateResult.roomName !== 'New Recreated Room') {
+    throw new Error('Test 22 Failed: Room name was not updated to new room name');
+  }
+  if (recreateResult.messages.length !== 0) {
+    throw new Error('Test 22 Failed: Old messages were not cleared on re-creation');
+  }
+
+  const testJoin = await createOrJoinRoom('RECREATE_ROOM', 'socket_another', { password: 'newpassword456' });
+  if (!testJoin.success) {
+    throw new Error('Test 22 Failed: New password not recognized after re-creation');
+  }
+  console.log('✓ Test 22: Inactive empty room successfully re-created with new configuration');
+  }
+
+  console.log('\nALL 22 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
