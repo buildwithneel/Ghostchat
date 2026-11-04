@@ -339,12 +339,15 @@ function initSocket(io) {
               usersCount: result.usersCount,
               users: getRoomUsers(targetRoomId)
             });
-
             if (result.newAdminId) {
               socket.to(targetRoomId).emit('system_message', {
                 message: `Admin privileges transferred to another user.`,
                 users: getRoomUsers(targetRoomId)
               });
+              const newAdminSocket = io.sockets.sockets.get ? io.sockets.sockets.get(result.newAdminId) : null;
+              if (newAdminSocket) {
+                newAdminSocket.emit('admin_promoted', { isAdmin: true });
+              }
             }
           }
           if (typeof callback === 'function') callback({ success: true });
@@ -366,12 +369,15 @@ function initSocket(io) {
               usersCount: result.usersCount,
               users: getRoomUsers(socket.roomId)
             });
-
             if (result.newAdminId) {
               socket.to(socket.roomId).emit('system_message', {
                 message: `Admin privileges transferred to another user.`,
                 users: getRoomUsers(socket.roomId)
               });
+              const newAdminSocket = io.sockets.sockets.get ? io.sockets.sockets.get(result.newAdminId) : null;
+              if (newAdminSocket) {
+                newAdminSocket.emit('admin_promoted', { isAdmin: true });
+              }
             }
           }
         }
