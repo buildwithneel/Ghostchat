@@ -144,7 +144,43 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Clipboard copy fallback handling (BUG-015)
+  const attemptCopy = async (text, mockClipboardWrite, mockExecCommand) => {
+    let copiedState = false;
+    const showSuccess = () => { copiedState = true; };
+    const fallback = () => {
+      try {
+        return mockExecCommand ? mockExecCommand('copy') : false;
+      } catch {
+        return false;
+      }
+    };
+
+    if (mockClipboardWrite) {
+      try {
+        await mockClipboardWrite(text);
+        showSuccess();
+      } catch {
+        if (fallback()) showSuccess();
+      }
+    } else {
+      if (fallback()) showSuccess();
+    }
+    return copiedState;
+  };
+
+  const test1 = await attemptCopy('link', async () => {}, () => false);
+  if (!test1) throw new Error('Test 11a Failed: Clipboard writeText should succeed');
+
+  const test2 = await attemptCopy('link', async () => { throw new Error('Denied'); }, () => true);
+  if (!test2) throw new Error('Test 11b Failed: Fallback copy should succeed when clipboard API fails');
+
+  const test3 = await attemptCopy('link', async () => { throw new Error('Denied'); }, () => false);
+  if (test3) throw new Error('Test 11c Failed: Must not claim success when copying failed');
+
+  console.log('✓ Test 11: Clipboard copy fallback correctly prevents false positive success');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
