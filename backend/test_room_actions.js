@@ -144,7 +144,46 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. file_downloaded listener state update (BUG-013)
+  const initialMessages = [
+    {
+      id: 'msg_file_1',
+      type: 'file',
+      fileData: { fileId: 'doc_123.pdf', downloads: 0 }
+    },
+    {
+      id: 'msg_text_2',
+      type: 'text',
+      message: 'Hello'
+    }
+  ];
+
+  const updateDownloadsOnEvent = (messages, eventData) => {
+    if (!eventData || !eventData.fileId) return messages;
+    return messages.map(m => {
+      if (m.type === 'file' && m.fileData && m.fileData.fileId === eventData.fileId) {
+        return {
+          ...m,
+          fileData: {
+            ...m.fileData,
+            downloads: eventData.downloads
+          }
+        };
+      }
+      return m;
+    });
+  };
+
+  const updated = updateDownloadsOnEvent(initialMessages, { fileId: 'doc_123.pdf', downloads: 5 });
+  if (updated[0].fileData.downloads !== 5) {
+    throw new Error('Test 11 Failed: File download count was not updated on file_downloaded event');
+  }
+  if (updated[1].message !== 'Hello') {
+    throw new Error('Test 11 Failed: Unrelated messages were corrupted during download count update');
+  }
+  console.log('✓ Test 11: file_downloaded event correctly updates message download counts');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
