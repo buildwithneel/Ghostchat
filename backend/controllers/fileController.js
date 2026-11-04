@@ -86,7 +86,8 @@ const uploadFile = async (req, res) => {
       expiresAt,
       viewOnce: viewOnce === 'true',
       passwordHash,
-      downloads: 0
+      downloads: 0,
+      downloadTokens: new Map()
     });
 
     res.json({
@@ -146,6 +147,10 @@ const downloadFileHandler = async (req, res) => {
 
   // Generate a short-lived download token
   const downloadToken = uuidv4();
+  if (!fileData.downloadTokens) {
+    fileData.downloadTokens = new Map();
+  }
+  fileData.downloadTokens.set(downloadToken, Date.now() + 5 * 60 * 1000);
   fileData.downloadToken = downloadToken;
   fileData.tokenExpires = Date.now() + 5 * 60 * 1000; // 5 min
   
@@ -165,7 +170,8 @@ const serveFile = (req, res) => {
      if (Date.now() > fileData.expiresAt) return res.status(404).send('Expired');
   } else {
      // token required
-     if (!token || fileData.downloadToken !== token || Date.now() > fileData.tokenExpires) {
+     const tokenExpires = fileData.downloadTokens?.get(token) || (fileData.downloadToken === token ? fileData.tokenExpires : null);
+     if (!token || !tokenExpires || Date.now() > tokenExpires) {
          return res.status(401).send('Unauthorized or token expired');
      }
   }

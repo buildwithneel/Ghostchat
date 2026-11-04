@@ -553,7 +553,70 @@ async function runTests() {
   console.log('✓ Test 18: File filter blocks unsafe files and file serving sets security headers');
   }
 
-  console.log('\nALL 18 TESTS PASSED CLEANLY! 🎉\n');
+    // 19. Regression Test (BUG-009)
+  {
+// 19. Concurrent Download Tokens (BUG-009)
+  const { downloadFileHandler, serveFile, filesDB } = require('./controllers/fileController');
+  const bcrypt = require('bcryptjs');
+  const path = require('path');
+  const fs = require('fs');
+
+  const fileId = 'race_test_file.txt';
+  const filePath = path.join(__dirname, 'uploads', fileId);
+  fs.writeFileSync(filePath, 'concurrent file test content');
+
+  const pwdHash = await bcrypt.hash('pass123', 10);
+  filesDB.set(fileId, {
+    fileId,
+    originalName: 'concurrent.txt',
+    mimeType: 'text/plain',
+    size: 25,
+    roomId: 'ROOM_A',
+    expiresAt: Date.now() + 60000,
+    passwordHash: pwdHash,
+    downloads: 0
+  });
+
+  let tokenA = null;
+  let tokenB = null;
+
+  await downloadFileHandler(
+    { params: { fileId }, body: { password: 'pass123' } },
+    { json: (data) => { tokenA = data.token; }, status: () => ({ json: () => {} }) }
+  );
+
+  await downloadFileHandler(
+    { params: { fileId }, body: { password: 'pass123' } },
+    { json: (data) => { tokenB = data.token; }, status: () => ({ json: () => {} }) }
+  );
+
+  if (!tokenA || !tokenB || tokenA === tokenB) {
+    throw new Error('Test 19 Failed: Could not generate two distinct download tokens');
+  }
+
+  let userAServed = false;
+  let userBServed = false;
+
+  serveFile(
+    { params: { fileId }, query: { token: tokenA }, app: { get: () => null } },
+    { setHeader: () => {}, status: () => ({ send: () => {} }), sendFile: (p, cb) => { userAServed = true; if (cb) cb(); } }
+  );
+
+  serveFile(
+    { params: { fileId }, query: { token: tokenB }, app: { get: () => null } },
+    { setHeader: () => {}, status: () => ({ send: () => {} }), sendFile: (p, cb) => { userBServed = true; if (cb) cb(); } }
+  );
+
+  if (!userAServed || !userBServed) {
+    throw new Error('Test 19 Failed: Concurrent token download failed for one of the users');
+  }
+
+  fs.unlinkSync(filePath);
+  filesDB.delete(fileId);
+  console.log('✓ Test 19: Concurrent download tokens work without race condition');
+  }
+
+  console.log('\nALL 19 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
