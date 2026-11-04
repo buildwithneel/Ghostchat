@@ -144,7 +144,59 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Admin privilege transfer & notification (BUG-006)
+  const { initSocket } = require('./socket/chatHandler');
+  const { EventEmitter } = require('events');
+  const mockSockets = new Map();
+  const ioHandlers = {};
+  const mockIo = {
+    on: (evt, handler) => { ioHandlers[evt] = handler; },
+    to: () => ({ emit: () => {} }),
+    sockets: { sockets: mockSockets }
+  };
+  initSocket(mockIo);
+
+  let promotedReceived = false;
+  const userASocket = new EventEmitter();
+  userASocket.id = 'socket_admin_a';
+  userASocket.join = () => {};
+  userASocket.leave = () => {};
+  userASocket.to = () => ({ emit: () => {} });
+
+  const userBSocket = new EventEmitter();
+  userBSocket.id = 'socket_user_b';
+  userBSocket.join = () => {};
+  userBSocket.leave = () => {};
+  userBSocket.to = () => ({ emit: () => {} });
+  userBSocket.emitOrig = userBSocket.emit;
+  userBSocket.emit = function (evt, ...args) {
+    if (evt === 'admin_promoted' && args[0] && args[0].isAdmin === true) {
+      promotedReceived = true;
+    }
+    return userBSocket.emitOrig(evt, ...args);
+  };
+
+  mockSockets.set('socket_admin_a', userASocket);
+  mockSockets.set('socket_user_b', userBSocket);
+
+  ioHandlers['connection'](userASocket);
+  ioHandlers['connection'](userBSocket);
+
+  await new Promise(res => userASocket.emit('join_room', { roomId: 'ADMIN_TEST_ROOM', username: 'Alice' }, res));
+  await new Promise(res => userBSocket.emit('join_room', { roomId: 'ADMIN_TEST_ROOM', username: 'Bob' }, res));
+  await new Promise(res => userASocket.emit('leave_room', { roomId: 'ADMIN_TEST_ROOM' }, res));
+
+  if (!promotedReceived) {
+    throw new Error('Test 11 Failed: admin_promoted event was not emitted to promoted socket');
+  }
+  const adminTestRoom = rooms.get('ADMIN_TEST_ROOM');
+  const bob = adminTestRoom.users.get('socket_user_b');
+  if (!bob || !bob.isAdmin) {
+    throw new Error('Test 11 Failed: Bob was not promoted to admin in room state');
+  }
+  console.log('✓ Test 11: Admin privilege transfer emitted admin_promoted and updated room state');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {

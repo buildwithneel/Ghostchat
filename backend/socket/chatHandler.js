@@ -237,6 +237,10 @@ function initSocket(io) {
               message: `Admin privileges transferred to another user.`,
               users: getRoomUsers(targetRoomId)
             });
+            const newAdminSocket = io.sockets.sockets.get ? io.sockets.sockets.get(result.newAdminId) : null;
+            if (newAdminSocket) {
+              newAdminSocket.emit('admin_promoted', { isAdmin: true });
+            }
           }
         }
         if (callback) callback({ success: true });
@@ -259,6 +263,10 @@ function initSocket(io) {
               message: `Admin privileges transferred to another user.`,
               users: getRoomUsers(socket.roomId)
             });
+            const newAdminSocket = io.sockets.sockets.get ? io.sockets.sockets.get(result.newAdminId) : null;
+            if (newAdminSocket) {
+              newAdminSocket.emit('admin_promoted', { isAdmin: true });
+            }
           }
         }
       }
