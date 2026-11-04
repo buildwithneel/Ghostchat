@@ -76,6 +76,7 @@ export default function ChatRoom() {
   const sentMessageIdsRef = useRef(new Set());
   const playedSoundIdsRef = useRef(new Set());
   const currentUsernameRef = useRef(username);
+  const currentPasswordRef = useRef(location.state?.password || '');
 
   useEffect(() => {
     currentUsernameRef.current = username;
@@ -126,6 +127,7 @@ export default function ChatRoom() {
         }
         setPasswordModalOpen(false);
         setPasswordError('');
+        currentPasswordRef.current = passwordToTry;
 
         saveRecentRoom(response.roomId, response.roomName, response.hasPassword);
 
@@ -150,6 +152,11 @@ export default function ChatRoom() {
     const initialPwd = location.state?.password || '';
     attemptJoin(initialPwd);
 
+    const handleReconnect = () => {
+      attemptJoin(currentPasswordRef.current);
+    };
+    socket.on('connect', handleReconnect);
+
     const handleScroll = () => {
       if (!scrollContainerRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
@@ -165,6 +172,7 @@ export default function ChatRoom() {
     const scrollEl = scrollContainerRef.current;
     if (scrollEl) scrollEl.addEventListener('scroll', handleScroll);
     return () => {
+       socket.off('connect', handleReconnect);
        if (scrollEl) scrollEl.removeEventListener('scroll', handleScroll);
     };
   }, [roomId, attemptJoin, location.state]);

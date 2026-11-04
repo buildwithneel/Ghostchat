@@ -144,7 +144,19 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Socket reconnection room restoration (BUG-007)
+  const user1Join = await createOrJoinRoom('ROOM_RECONNECT', 'socket_old_conn', { roomName: 'Reconnect Room', password: 'pwd123' });
+  if (!user1Join.success) {
+    throw new Error('Test 11 Failed: Initial join failed');
+  }
+  leaveRoom('ROOM_RECONNECT', 'socket_old_conn');
+  const user1Rejoin = await createOrJoinRoom('ROOM_RECONNECT', 'socket_new_conn', { password: 'pwd123' });
+  if (!user1Rejoin.success || !user1Rejoin.users.some(u => u.id === 'socket_new_conn')) {
+    throw new Error('Test 11 Failed: Rejoin after reconnect failed');
+  }
+  console.log('✓ Test 11: Socket reconnection restores room membership cleanly');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
