@@ -8,7 +8,8 @@ const {
   addMessageReaction,
   togglePinMessage,
   forwardMessageToRoom,
-  checkRoom
+  checkRoom,
+  rooms
 } = require('../controllers/roomController');
 
 const MAX_MSG_LENGTH = 1000;
@@ -89,6 +90,7 @@ function initSocket(io) {
       } = data;
 
       if (!roomId) return;
+      if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
       if (type === 'text' && (!message || message.trim() === '')) return;
 
       const cleanMessage = type === 'text' ? message.substring(0, MAX_MSG_LENGTH) : '';
@@ -122,6 +124,7 @@ function initSocket(io) {
     socket.on('react_message', (data) => {
       const { roomId, messageId, emoji, username } = data;
       if (!roomId || !messageId || !emoji) return;
+      if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
 
       const user = username || socket.username || socket.id;
       const updatedReactions = addMessageReaction(roomId, messageId, emoji, user);
@@ -143,6 +146,7 @@ function initSocket(io) {
     socket.on('pin_message', (data) => {
       const { roomId, messageId } = data;
       if (!roomId || !messageId) return;
+      if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
 
       const isPinned = togglePinMessage(roomId, messageId);
       io.to(roomId).emit('message_pinned', { messageId, pinned: isPinned });
@@ -214,6 +218,7 @@ function initSocket(io) {
     socket.on('typing', (data) => {
       const { roomId, username, isTyping } = data;
       if (!roomId) return;
+      if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
       socket.to(roomId).emit('user_typing', { username, isTyping });
     });
 

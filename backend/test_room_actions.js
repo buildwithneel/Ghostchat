@@ -8,6 +8,8 @@ const {
   checkRoom,
   rooms
 } = require('./controllers/roomController');
+const { EventEmitter } = require('events');
+const { initSocket } = require('./socket/chatHandler');
 
 async function runTests() {
   console.log('--- Starting Room & Message Action Tests ---');
@@ -144,7 +146,82 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Regression Test BUG-003: Socket authorization check prevents unauthorized message injection
+  const mockIo = new EventEmitter();
+  mockIo.to = () => ({ emit: () => {} });
+  initSocket(mockIo);
+
+  const unauthSocket = new EventEmitter();
+  unauthSocket.id = 'unauth_socket';
+  unauthSocket.roomId = null;
+  unauthSocket.join = () => {};
+  unauthSocket.leave = () => {};
+  unauthSocket.to = () => ({ emit: () => {} });
+
+  mockIo.emit('connection', unauthSocket);
+
+  const initialMsgCount = rooms.get('ROOM_B').messages.length;
+
+  // Unauth socket attempts to inject message into ROOM_B
+  unauthSocket.emit('send_message', {
+    roomId: 'ROOM_B',
+    message: 'Unauthorized injected message',
+    username: 'Attacker'
+  });
+
+  if (rooms.get('ROOM_B').messages.length !== initialMsgCount) {
+    throw new Error('Test 11 Failed: Unauthorized socket injected message into protected room');
+  }
+
+  // Unauth socket attempts to react to message in ROOM_B
+  const msgId = rooms.get('ROOM_B').messages[0].id;
+  unauthSocket.emit('react_message', {
+    roomId: 'ROOM_B',
+    messageId: msgId,
+    emoji: '😈',
+    username: 'Attacker'
+  });
+  const reactions = rooms.get('ROOM_B').messages[0].reactions || [];
+  if (reactions.some(r => r.emoji === '😈')) {
+    throw new Error('Test 11 Failed: Unauthorized socket added reaction to protected room message');
+  }
+
+  // Unauth socket attempts to toggle pin in ROOM_B
+  const pinBefore = rooms.get('ROOM_B').messages[0].pinned;
+  unauthSocket.emit('pin_message', {
+    roomId: 'ROOM_B',
+    messageId: msgId
+  });
+  if (rooms.get('ROOM_B').messages[0].pinned !== pinBefore) {
+    throw new Error('Test 11 Failed: Unauthorized socket toggled pin in protected room');
+  }
+
+  // Authorized socket joins ROOM_B with password
+  const authSocket = new EventEmitter();
+  authSocket.id = 'auth_socket_good';
+  authSocket.roomId = null;
+  authSocket.join = (rid) => { authSocket.roomId = rid; };
+  authSocket.leave = () => {};
+  authSocket.to = () => ({ emit: () => {} });
+
+  mockIo.emit('connection', authSocket);
+  await new Promise(res => {
+    authSocket.emit('join_room', { roomId: 'ROOM_B', password: 'secretpassword123' }, res);
+  });
+
+  // Authorized socket sends message -> should succeed
+  authSocket.emit('send_message', {
+    roomId: 'ROOM_B',
+    message: 'Authorized message',
+    username: 'Bob'
+  });
+  if (rooms.get('ROOM_B').messages.length !== initialMsgCount + 1) {
+    throw new Error('Test 11 Failed: Authorized socket could not send message');
+  }
+
+  console.log('✓ Test 11 (BUG-003): Verified protected room rejects unauthorized socket send/react/pin while authorized succeeds');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
