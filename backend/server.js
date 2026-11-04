@@ -29,7 +29,6 @@ app.use(express.json());
 
 // Routes
 app.use('/api/files', fileRoutes);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Socket.io
 const io = new Server(server, {

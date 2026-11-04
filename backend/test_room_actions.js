@@ -8,6 +8,13 @@ const {
   checkRoom,
   rooms
 } = require('./controllers/roomController');
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const fileRoutes = require('./routes/fileRoutes');
+const { filesDB, deleteFileInternal } = require('./controllers/fileController');
 const { EventEmitter } = require('events');
 const { initSocket } = require('./socket/chatHandler');
 
@@ -146,7 +153,103 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  // 11. Regression Test BUG-003: Socket authorization check prevents unauthorized message injection
+// 11. Regression Test BUG-001: Malformed socket / controller payloads do not crash
+  const badCheck1 = checkRoom(null);
+  const badCheck2 = checkRoom(12345);
+  const badCheck3 = checkRoom({});
+  if (badCheck1 !== null || badCheck2 !== null || badCheck3 !== null) {
+    throw new Error('Test 11 Failed: checkRoom did not safely handle non-string room ID');
+  }
+  const badForward1 = await forwardMessageToRoom({ targetRoomId: null, message: null });
+  const badForward2 = await forwardMessageToRoom({ targetRoomId: 123, message: 'bad' });
+  if (badForward1.success || badForward2.success) {
+    throw new Error('Test 11 Failed: forwardMessageToRoom did not reject malformed inputs');
+  }
+  console.log('✓ Test 11 (BUG-001): Handled malformed and null payloads safely without unhandled exceptions');
+
+  // 12. Regression Test BUG-002: Ensure static /uploads bypass is eliminated and authorized routing works
+  const app = express();
+  app.use(express.json());
+  app.use('/api/files', fileRoutes);
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
+  const baseUrl = `http://localhost:${port}`;
+
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+  const testFileId = 'test-auth-' + Date.now() + '.txt';
+  const testFilePath = path.join(uploadDir, testFileId);
+  fs.writeFileSync(testFilePath, 'SECURE_DATA');
+  const pwdHash = await bcrypt.hash('secretPass123', 10);
+
+  filesDB.set(testFileId, {
+    fileId: testFileId,
+    originalName: 'test.txt',
+    mimeType: 'text/plain',
+    size: 11,
+    roomId: 'SEC_ROOM',
+    username: 'Alice',
+    uploadedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+    viewOnce: true,
+    passwordHash: pwdHash,
+    downloads: 0
+  });
+
+  // 12a: Direct static access to /uploads should return 404
+  const resStatic = await fetch(`${baseUrl}/uploads/${testFileId}`);
+  if (resStatic.status !== 404) {
+    throw new Error(`Test 12 Failed: Direct static access returned status ${resStatic.status} instead of 404`);
+  }
+
+  // 12b: Accessing /api/files/view without token returns 401
+  const resViewNoToken = await fetch(`${baseUrl}/api/files/view/${testFileId}`);
+  if (resViewNoToken.status !== 401) {
+    throw new Error(`Test 12 Failed: Accessing protected file without token returned ${resViewNoToken.status} instead of 401`);
+  }
+
+  // 12c: Request download token with wrong password returns 401
+  const resBadPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'wrong' })
+  });
+  if (resBadPwd.status !== 401) {
+    throw new Error('Test 12 Failed: Wrong password did not return 401');
+  }
+
+  // 12d: Request download token with correct password returns token
+  const resGoodPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'secretPass123' })
+  });
+  const pwdData = await resGoodPwd.json();
+  if (!pwdData.success || !pwdData.token) {
+    throw new Error('Test 12 Failed: Valid password did not generate download token');
+  }
+
+  // 12e: Accessing with valid token returns 200 and file contents
+  const resViewToken = await fetch(`${baseUrl}/api/files/view/${testFileId}?token=${pwdData.token}`);
+  if (resViewToken.status !== 200) {
+    throw new Error(`Test 12 Failed: Accessing with valid token returned ${resViewToken.status}`);
+  }
+  const text = await resViewToken.text();
+  if (text !== 'SECURE_DATA') {
+    throw new Error('Test 12 Failed: File content mismatch');
+  }
+
+  // 12f: View-once self destruction cleans up file from disk and database
+  await new Promise(r => setTimeout(r, 200));
+  if (fs.existsSync(testFilePath) || filesDB.has(testFileId)) {
+    throw new Error('Test 12 Failed: View-once file was not deleted after serving');
+  }
+
+  server.close();
+  console.log('✓ Test 12 (BUG-002): /uploads static bypass eliminated and authorized token/viewOnce flow validated');
+
+  // 13. Regression Test BUG-003: Socket authorization check prevents unauthorized message injection
   const mockIo = new EventEmitter();
   mockIo.to = () => ({ emit: () => {} });
   initSocket(mockIo);
@@ -170,7 +273,7 @@ async function runTests() {
   });
 
   if (rooms.get('ROOM_B').messages.length !== initialMsgCount) {
-    throw new Error('Test 11 Failed: Unauthorized socket injected message into protected room');
+    throw new Error('Test 13 Failed: Unauthorized socket injected message into protected room');
   }
 
   // Unauth socket attempts to react to message in ROOM_B
@@ -183,7 +286,7 @@ async function runTests() {
   });
   const reactions = rooms.get('ROOM_B').messages[0].reactions || [];
   if (reactions.some(r => r.emoji === '😈')) {
-    throw new Error('Test 11 Failed: Unauthorized socket added reaction to protected room message');
+    throw new Error('Test 13 Failed: Unauthorized socket added reaction to protected room message');
   }
 
   // Unauth socket attempts to toggle pin in ROOM_B
@@ -193,7 +296,7 @@ async function runTests() {
     messageId: msgId
   });
   if (rooms.get('ROOM_B').messages[0].pinned !== pinBefore) {
-    throw new Error('Test 11 Failed: Unauthorized socket toggled pin in protected room');
+    throw new Error('Test 13 Failed: Unauthorized socket toggled pin in protected room');
   }
 
   // Authorized socket joins ROOM_B with password
@@ -216,12 +319,12 @@ async function runTests() {
     username: 'Bob'
   });
   if (rooms.get('ROOM_B').messages.length !== initialMsgCount + 1) {
-    throw new Error('Test 11 Failed: Authorized socket could not send message');
+    throw new Error('Test 13 Failed: Authorized socket could not send message');
   }
 
-  console.log('✓ Test 11 (BUG-003): Verified protected room rejects unauthorized socket send/react/pin while authorized succeeds');
+  console.log('✓ Test 13 (BUG-003): Verified protected room rejects unauthorized socket send/react/pin while authorized succeeds');
 
-  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
+  console.log('\nALL 13 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
