@@ -144,7 +144,21 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Regression Test BUG-001: Malformed socket / controller payloads do not crash
+  const badCheck1 = checkRoom(null);
+  const badCheck2 = checkRoom(12345);
+  const badCheck3 = checkRoom({});
+  if (badCheck1 !== null || badCheck2 !== null || badCheck3 !== null) {
+    throw new Error('Test 11 Failed: checkRoom did not safely handle non-string room ID');
+  }
+  const badForward1 = await forwardMessageToRoom({ targetRoomId: null, message: null });
+  const badForward2 = await forwardMessageToRoom({ targetRoomId: 123, message: 'bad' });
+  if (badForward1.success || badForward2.success) {
+    throw new Error('Test 11 Failed: forwardMessageToRoom did not reject malformed inputs');
+  }
+  console.log('✓ Test 11 (BUG-001): Handled malformed and null payloads safely without unhandled exceptions');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
