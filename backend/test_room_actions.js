@@ -151,7 +151,21 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  // 11. Regression Test BUG-002: Ensure static /uploads bypass is eliminated and authorized routing works
+  // 11. Regression Test BUG-001: Malformed socket / controller payloads do not crash
+  const badCheck1 = checkRoom(null);
+  const badCheck2 = checkRoom(12345);
+  const badCheck3 = checkRoom({});
+  if (badCheck1 !== null || badCheck2 !== null || badCheck3 !== null) {
+    throw new Error('Test 11 Failed: checkRoom did not safely handle non-string room ID');
+  }
+  const badForward1 = await forwardMessageToRoom({ targetRoomId: null, message: null });
+  const badForward2 = await forwardMessageToRoom({ targetRoomId: 123, message: 'bad' });
+  if (badForward1.success || badForward2.success) {
+    throw new Error('Test 11 Failed: forwardMessageToRoom did not reject malformed inputs');
+  }
+  console.log('✓ Test 11 (BUG-001): Handled malformed and null payloads safely without unhandled exceptions');
+
+  // 12. Regression Test BUG-002: Ensure static /uploads bypass is eliminated and authorized routing works
   const app = express();
   app.use(express.json());
   app.use('/api/files', fileRoutes);
@@ -181,29 +195,29 @@ async function runTests() {
     downloads: 0
   });
 
-  // 11a: Direct static access to /uploads should return 404
+  // 12a: Direct static access to /uploads should return 404
   const resStatic = await fetch(`${baseUrl}/uploads/${testFileId}`);
   if (resStatic.status !== 404) {
-    throw new Error(`Test 11 Failed: Direct static access returned status ${resStatic.status} instead of 404`);
+    throw new Error(`Test 12 Failed: Direct static access returned status ${resStatic.status} instead of 404`);
   }
 
-  // 11b: Accessing /api/files/view without token returns 401
+  // 12b: Accessing /api/files/view without token returns 401
   const resViewNoToken = await fetch(`${baseUrl}/api/files/view/${testFileId}`);
   if (resViewNoToken.status !== 401) {
-    throw new Error(`Test 11 Failed: Accessing protected file without token returned ${resViewNoToken.status} instead of 401`);
+    throw new Error(`Test 12 Failed: Accessing protected file without token returned ${resViewNoToken.status} instead of 401`);
   }
 
-  // 11c: Request download token with wrong password returns 401
+  // 12c: Request download token with wrong password returns 401
   const resBadPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: 'wrong' })
   });
   if (resBadPwd.status !== 401) {
-    throw new Error('Test 11 Failed: Wrong password did not return 401');
+    throw new Error('Test 12 Failed: Wrong password did not return 401');
   }
 
-  // 11d: Request download token with correct password returns token
+  // 12d: Request download token with correct password returns token
   const resGoodPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -211,29 +225,29 @@ async function runTests() {
   });
   const pwdData = await resGoodPwd.json();
   if (!pwdData.success || !pwdData.token) {
-    throw new Error('Test 11 Failed: Valid password did not generate download token');
+    throw new Error('Test 12 Failed: Valid password did not generate download token');
   }
 
-  // 11e: Accessing with valid token returns 200 and file contents
+  // 12e: Accessing with valid token returns 200 and file contents
   const resViewToken = await fetch(`${baseUrl}/api/files/view/${testFileId}?token=${pwdData.token}`);
   if (resViewToken.status !== 200) {
-    throw new Error(`Test 11 Failed: Accessing with valid token returned ${resViewToken.status}`);
+    throw new Error(`Test 12 Failed: Accessing with valid token returned ${resViewToken.status}`);
   }
   const text = await resViewToken.text();
   if (text !== 'SECURE_DATA') {
-    throw new Error('Test 11 Failed: File content mismatch');
+    throw new Error('Test 12 Failed: File content mismatch');
   }
 
-  // 11f: View-once self destruction cleans up file from disk and database
+  // 12f: View-once self destruction cleans up file from disk and database
   await new Promise(r => setTimeout(r, 200));
   if (fs.existsSync(testFilePath) || filesDB.has(testFileId)) {
-    throw new Error('Test 11 Failed: View-once file was not deleted after serving');
+    throw new Error('Test 12 Failed: View-once file was not deleted after serving');
   }
 
   server.close();
-  console.log('✓ Test 11 (BUG-002): /uploads static bypass eliminated and authorized token/viewOnce flow validated');
+  console.log('✓ Test 12 (BUG-002): /uploads static bypass eliminated and authorized token/viewOnce flow validated');
 
-  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
+  console.log('\nALL 12 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
