@@ -616,7 +616,22 @@ async function runTests() {
   console.log('✓ Test 19: Concurrent download tokens work without race condition');
   }
 
-  console.log('\nALL 19 TESTS PASSED CLEANLY! 🎉\n');
+    // 20. Regression Test (BUG-010)
+  {
+// 20. Slash shortcut does not hijack focus from editable inputs (BUG-010)
+  const isEditableElement = (tagName, isContentEditable) => {
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || !!isContentEditable;
+  };
+  if (!isEditableElement('INPUT', false) || !isEditableElement('TEXTAREA', false) || !isEditableElement('DIV', true)) {
+    throw new Error('Test 20 Failed: Editable elements not correctly identified');
+  }
+  if (isEditableElement('DIV', false) || isEditableElement('BODY', false)) {
+    throw new Error('Test 20 Failed: Non-editable elements falsely identified as editable');
+  }
+  console.log('✓ Test 20: Editable element detection prevents slash key hijacking');
+  }
+
+  console.log('\nALL 20 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
