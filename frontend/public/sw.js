@@ -14,7 +14,9 @@ const PRECACHE_ASSETS = [
   '/icon-maskable-192.png',
   '/icon-maskable-512.png',
   '/notification.mp3',
-  '/send.mp3'
+  '/send.mp3',
+  '/notification.wav',
+  '/send.wav'
 ];
 
 // Handle SKIP_WAITING message from the page

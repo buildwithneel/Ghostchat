@@ -28,7 +28,9 @@ def generate_wav(filepath, duration, freqs, decay=True):
 
 public_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "public"))
 
-# generate send.mp3 and notification.mp3 (WAV audio format with mp3 extension for universal decoder support)
+# generate WAV audio files and legacy mp3 references
+generate_wav(os.path.join(public_dir, "send.wav"), 0.2, [(0.0, 520.0), (0.05, 780.0)])
+generate_wav(os.path.join(public_dir, "notification.wav"), 0.35, [(0.0, 659.25), (0.1, 880.0)])
 generate_wav(os.path.join(public_dir, "send.mp3"), 0.2, [(0.0, 520.0), (0.05, 780.0)])
 generate_wav(os.path.join(public_dir, "notification.mp3"), 0.35, [(0.0, 659.25), (0.1, 880.0)])
-print("Generated send.mp3 and notification.mp3 successfully")
+print("Generated audio files successfully")
