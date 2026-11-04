@@ -19,7 +19,34 @@ const storage = multer.diskStorage({
     cb(null, `${uuidv4()}${ext}`);
   }
 });
-const upload = multer({ 
+const DISALLOWED_EXTENSIONS = new Set([
+  '.html', '.htm', '.xhtml', '.svg', '.js', '.mjs', '.cjs',
+  '.php', '.exe', '.bat', '.cmd', '.sh', '.vbs', '.scr', '.dll'
+]);
+
+const DISALLOWED_MIMETYPES = new Set([
+  'text/html',
+  'image/svg+xml',
+  'application/javascript',
+  'text/javascript',
+  'application/x-javascript',
+  'application/x-executable',
+  'application/x-msdownload',
+  'application/x-sh',
+  'application/x-php'
+]);
+
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  if (DISALLOWED_EXTENSIONS.has(ext) || DISALLOWED_MIMETYPES.has(mime)) {
+    return cb(new Error('File type not allowed for security reasons.'));
+  }
+  cb(null, true);
+};
+
+const upload = multer({
+  fileFilter, 
   storage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 }).single('file');
@@ -152,6 +179,8 @@ const serveFile = (req, res) => {
      io.to(fileData.roomId).emit('file_downloaded', { fileId, downloads: fileData.downloads });
   }
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
   res.sendFile(filePath, (err) => {
     if (isViewOnce && !err) {
       setTimeout(() => deleteFileInternal(fileId), 100);
@@ -175,5 +204,6 @@ module.exports = {
   serveFile,
   downloadFileHandler,
   filesDB,
+  fileFilter,
   deleteFileInternal
 };

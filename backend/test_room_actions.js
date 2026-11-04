@@ -144,7 +144,72 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Secure File Uploads & XSS Prevention (BUG-008)
+  const { serveFile, fileFilter, filesDB } = require('./controllers/fileController');
+  const path = require('path');
+  const fs = require('fs');
+
+  let svgError = null;
+  fileFilter({}, { originalname: 'exploit.svg', mimetype: 'image/svg+xml' }, (err) => { svgError = err; });
+  if (!svgError) {
+    throw new Error('Test 11a Failed: SVG upload not rejected by fileFilter');
+  }
+
+  let htmlError = null;
+  fileFilter({}, { originalname: 'index.html', mimetype: 'text/html' }, (err) => { htmlError = err; });
+  if (!htmlError) {
+    throw new Error('Test 11b Failed: HTML upload not rejected by fileFilter');
+  }
+
+  let pngError = null;
+  let pngAccepted = false;
+  fileFilter({}, { originalname: 'avatar.png', mimetype: 'image/png' }, (err, accepted) => {
+    pngError = err;
+    pngAccepted = accepted;
+  });
+  if (pngError || !pngAccepted) {
+    throw new Error('Test 11c Failed: Safe PNG rejected by fileFilter');
+  }
+
+  const testFileId = 'sec_test_file.png';
+  const testFilePath = path.join(__dirname, 'uploads', testFileId);
+  fs.writeFileSync(testFilePath, 'dummy data');
+  filesDB.set(testFileId, {
+    fileId: testFileId,
+    originalName: 'test.png',
+    mimeType: 'image/png',
+    size: 10,
+    roomId: 'ROOM_A',
+    expiresAt: Date.now() + 60000,
+    downloads: 0
+  });
+
+  const headersSet = {};
+  const mockRes = {
+    setHeader: (k, v) => { headersSet[k] = v; },
+    status: () => ({ send: () => {} }),
+    sendFile: (p, cb) => { if (cb) cb(null); }
+  };
+  const mockReq = {
+    params: { fileId: testFileId },
+    query: {},
+    app: { get: () => null }
+  };
+
+  serveFile(mockReq, mockRes);
+
+  if (headersSet['X-Content-Type-Options'] !== 'nosniff') {
+    throw new Error('Test 11d Failed: X-Content-Type-Options header missing');
+  }
+  if (!headersSet['Content-Security-Policy'] || !headersSet['Content-Security-Policy'].includes('sandbox')) {
+    throw new Error('Test 11e Failed: CSP sandbox header missing');
+  }
+
+  fs.unlinkSync(testFilePath);
+  filesDB.delete(testFileId);
+  console.log('✓ Test 11: File filter blocks unsafe files and file serving sets security headers');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
