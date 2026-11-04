@@ -20,19 +20,38 @@ export default function SmartTopBar({
 }) {
   const [copied, setCopied] = useState(false);
 
+  const fallbackCopy = (text) => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return !!success;
+    } catch {
+      return false;
+    }
+  };
+
   const copyRoomLink = () => {
     const inviteUrl = `${window.location.origin}/room/${roomId}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(inviteUrl).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }).catch(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
-    } else {
+    const showSuccess = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl).then(() => {
+        showSuccess();
+      }).catch(() => {
+        const fallbackSuccess = fallbackCopy(inviteUrl);
+        if (fallbackSuccess) showSuccess();
+      });
+    } else {
+      const fallbackSuccess = fallbackCopy(inviteUrl);
+      if (fallbackSuccess) showSuccess();
     }
   };
 
