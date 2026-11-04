@@ -8,6 +8,13 @@ const {
   checkRoom,
   rooms
 } = require('./controllers/roomController');
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const fileRoutes = require('./routes/fileRoutes');
+const { filesDB, deleteFileInternal } = require('./controllers/fileController');
 
 async function runTests() {
   console.log('--- Starting Room & Message Action Tests ---');
@@ -144,7 +151,89 @@ async function runTests() {
   }
   console.log('✓ Test 10: User left room without erasing message history');
 
-  console.log('\nALL 10 TESTS PASSED CLEANLY! 🎉\n');
+  // 11. Regression Test BUG-002: Ensure static /uploads bypass is eliminated and authorized routing works
+  const app = express();
+  app.use(express.json());
+  app.use('/api/files', fileRoutes);
+  const server = http.createServer(app);
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
+  const baseUrl = `http://localhost:${port}`;
+
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+  const testFileId = 'test-auth-' + Date.now() + '.txt';
+  const testFilePath = path.join(uploadDir, testFileId);
+  fs.writeFileSync(testFilePath, 'SECURE_DATA');
+  const pwdHash = await bcrypt.hash('secretPass123', 10);
+
+  filesDB.set(testFileId, {
+    fileId: testFileId,
+    originalName: 'test.txt',
+    mimeType: 'text/plain',
+    size: 11,
+    roomId: 'SEC_ROOM',
+    username: 'Alice',
+    uploadedAt: Date.now(),
+    expiresAt: Date.now() + 60000,
+    viewOnce: true,
+    passwordHash: pwdHash,
+    downloads: 0
+  });
+
+  // 11a: Direct static access to /uploads should return 404
+  const resStatic = await fetch(`${baseUrl}/uploads/${testFileId}`);
+  if (resStatic.status !== 404) {
+    throw new Error(`Test 11 Failed: Direct static access returned status ${resStatic.status} instead of 404`);
+  }
+
+  // 11b: Accessing /api/files/view without token returns 401
+  const resViewNoToken = await fetch(`${baseUrl}/api/files/view/${testFileId}`);
+  if (resViewNoToken.status !== 401) {
+    throw new Error(`Test 11 Failed: Accessing protected file without token returned ${resViewNoToken.status} instead of 401`);
+  }
+
+  // 11c: Request download token with wrong password returns 401
+  const resBadPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'wrong' })
+  });
+  if (resBadPwd.status !== 401) {
+    throw new Error('Test 11 Failed: Wrong password did not return 401');
+  }
+
+  // 11d: Request download token with correct password returns token
+  const resGoodPwd = await fetch(`${baseUrl}/api/files/download/${testFileId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: 'secretPass123' })
+  });
+  const pwdData = await resGoodPwd.json();
+  if (!pwdData.success || !pwdData.token) {
+    throw new Error('Test 11 Failed: Valid password did not generate download token');
+  }
+
+  // 11e: Accessing with valid token returns 200 and file contents
+  const resViewToken = await fetch(`${baseUrl}/api/files/view/${testFileId}?token=${pwdData.token}`);
+  if (resViewToken.status !== 200) {
+    throw new Error(`Test 11 Failed: Accessing with valid token returned ${resViewToken.status}`);
+  }
+  const text = await resViewToken.text();
+  if (text !== 'SECURE_DATA') {
+    throw new Error('Test 11 Failed: File content mismatch');
+  }
+
+  // 11f: View-once self destruction cleans up file from disk and database
+  await new Promise(r => setTimeout(r, 200));
+  if (fs.existsSync(testFilePath) || filesDB.has(testFileId)) {
+    throw new Error('Test 11 Failed: View-once file was not deleted after serving');
+  }
+
+  server.close();
+  console.log('✓ Test 11 (BUG-002): /uploads static bypass eliminated and authorized token/viewOnce flow validated');
+
+  console.log('\nALL 11 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
