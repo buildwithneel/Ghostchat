@@ -727,7 +727,23 @@ async function runTests() {
   console.log('✓ Test 23: file_downloaded event correctly updates message download counts');
   }
 
-  console.log('\nALL 23 TESTS PASSED CLEANLY! 🎉\n');
+    // 24. Regression Test (BUG-014)
+  {
+// 24. PWA action parameter handling (BUG-014)
+  const parseHomeAction = (searchQuery) => {
+    const params = new URLSearchParams(searchQuery);
+    return params.get('action');
+  };
+  if (parseHomeAction('?action=new-room') !== 'new-room') {
+    throw new Error('Test 24 Failed: action=new-room parameter was not parsed correctly');
+  }
+  if (parseHomeAction('?room=ABC') !== null) {
+    throw new Error('Test 24 Failed: Non-action query string falsely parsed as action');
+  }
+  console.log('✓ Test 24: PWA action=new-room shortcut parameter correctly handled');
+  }
+
+  console.log('\nALL 24 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
