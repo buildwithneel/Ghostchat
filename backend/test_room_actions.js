@@ -782,7 +782,30 @@ async function runTests() {
   console.log('✓ Test 25: Clipboard copy fallback correctly prevents false positive success');
   }
 
-  console.log('\nALL 25 TESTS PASSED CLEANLY! 🎉\n');
+    // 26. Regression Test (BUG-016)
+  {
+// 26. Audio asset format and header verification (BUG-016)
+  const fs = require('fs');
+  const path = require('path');
+  const publicDir = path.join(__dirname, '..', 'frontend', 'public');
+  const wavFiles = ['send.wav', 'notification.wav'];
+
+  for (const fileName of wavFiles) {
+    const fullPath = path.join(publicDir, fileName);
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`Test 26 Failed: ${fileName} does not exist in frontend/public`);
+    }
+    const buf = fs.readFileSync(fullPath);
+    const riff = buf.subarray(0, 4).toString('ascii');
+    const wave = buf.subarray(8, 12).toString('ascii');
+    if (riff !== 'RIFF' || wave !== 'WAVE') {
+      throw new Error(`Test 26 Failed: ${fileName} is not a valid RIFF/WAVE file`);
+    }
+  }
+  console.log('✓ Test 26: Audio assets have valid WAV format headers and extensions');
+  }
+
+  console.log('\nALL 26 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {

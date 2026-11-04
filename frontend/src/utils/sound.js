@@ -108,7 +108,7 @@ class SoundEngine {
       }
     }
 
-    this.fallbackPlay('/send.mp3');
+    this.fallbackPlay('/send.wav');
   }
 
   // Incoming message notification: dual crystal chime
@@ -155,7 +155,7 @@ class SoundEngine {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-    this.fallbackPlay('/notification.mp3');
+    this.fallbackPlay('/notification.wav');
   }
 
   // Sound toggle feedback
