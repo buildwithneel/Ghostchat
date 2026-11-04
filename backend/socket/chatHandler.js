@@ -8,7 +8,8 @@ const {
   addMessageReaction,
   togglePinMessage,
   forwardMessageToRoom,
-  checkRoom
+  checkRoom,
+  rooms
 } = require('../controllers/roomController');
 
 const MAX_MSG_LENGTH = 1000;
@@ -105,6 +106,9 @@ function initSocket(io) {
         } = data;
 
         if (!roomId || typeof roomId !== 'string') return;
+        if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
+
+        if (!roomId || typeof roomId !== 'string') return;
         if (typeof type !== 'string') return;
         if (type === 'text' && (!message || typeof message !== 'string' || message.trim() === '')) return;
 
@@ -148,6 +152,7 @@ function initSocket(io) {
         if (!roomId || typeof roomId !== 'string') return;
         if (!messageId || typeof messageId !== 'string') return;
         if (!emoji || typeof emoji !== 'string') return;
+        if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
 
         const user = (typeof username === 'string' && username) ? username : (socket.username || socket.id);
         const updatedReactions = addMessageReaction(roomId, messageId, emoji, user);
@@ -175,6 +180,7 @@ function initSocket(io) {
         const { roomId, messageId } = data;
         if (!roomId || typeof roomId !== 'string') return;
         if (!messageId || typeof messageId !== 'string') return;
+        if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
 
         const isPinned = togglePinMessage(roomId, messageId);
         io.to(roomId).emit('message_pinned', { messageId, pinned: isPinned });
@@ -291,6 +297,7 @@ function initSocket(io) {
         if (!data || typeof data !== 'object') return;
         const { roomId, username, isTyping } = data;
         if (!roomId || typeof roomId !== 'string') return;
+        if (socket.roomId !== roomId || !rooms.has(roomId) || !rooms.get(roomId).users.has(socket.id)) return;
         socket.to(roomId).emit('user_typing', {
           username: typeof username === 'string' ? username : (socket.username || 'Anonymous'),
           isTyping: !!isTyping
