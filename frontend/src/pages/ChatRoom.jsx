@@ -28,6 +28,7 @@ export default function ChatRoom() {
 
   const [messages, setMessages] = useState([]);
   const [username, setUsername] = useState('');
+  const [userAliases, setUserAliases] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [hasPassword, setHasPassword] = useState(false);
@@ -118,6 +119,7 @@ export default function ChatRoom() {
     }, (response) => {
       if (response?.success) {
         setUsername(response.username);
+        setUserAliases(prev => prev.includes(response.username) ? prev : [...prev, response.username]);
         setIsAdmin(response.isAdmin);
         setRoomName(response.roomName || response.roomId);
         setHasPassword(!!response.hasPassword);
@@ -428,6 +430,7 @@ export default function ChatRoom() {
     socket.emit('change_name', { roomId, oldName: username, newName }, (res) => {
       if(res.success) {
         setUsername(res.newName);
+        setUserAliases(prev => prev.includes(res.newName) ? prev : [...prev, res.newName]);
         setShowNameModal(false);
       }
     });
@@ -595,7 +598,7 @@ export default function ChatRoom() {
               <MessageBubble 
                  key={msg.id || idx} 
                  message={msg} 
-                 isOwn={msg.username === username} 
+                 isOwn={msg.username === username || userAliases.includes(msg.username)} 
                  isAdmin={isAdmin}
                  isConsecutive={isConsecutive}
                  currentUsername={username}

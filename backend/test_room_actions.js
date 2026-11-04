@@ -631,7 +631,26 @@ async function runTests() {
   console.log('✓ Test 20: Editable element detection prevents slash key hijacking');
   }
 
-  console.log('\nALL 20 TESTS PASSED CLEANLY! 🎉\n');
+    // 21. Regression Test (BUG-011)
+  {
+// 21. Preserve message ownership across user alias renames (BUG-011)
+  const isMessageOwn = (msgUsername, currentUsername, aliases, sentIds, msgId) => {
+    return msgUsername === currentUsername || aliases.includes(msgUsername) || (!!msgId && sentIds.has(msgId));
+  };
+  const sentIds = new Set(['msg_123']);
+  const aliases = ['Ghost_1001', 'NeonNinja'];
+  const currentUsername = 'NeonNinja';
+
+  if (!isMessageOwn('Ghost_1001', currentUsername, aliases, sentIds, 'msg_123')) {
+    throw new Error('Test 21 Failed: Historical message lost ownership after rename');
+  }
+  if (isMessageOwn('Ghost_2002', currentUsername, aliases, sentIds, 'msg_999')) {
+    throw new Error('Test 21 Failed: Another user message falsely claimed as own');
+  }
+  console.log('✓ Test 21: Message ownership preserved across user alias renames');
+  }
+
+  console.log('\nALL 21 TESTS PASSED CLEANLY! 🎉\n');
 }
 
 runTests().catch(err => {
